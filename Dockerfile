@@ -9,6 +9,11 @@ RUN apk add --no-cache \
     git
 
 WORKDIR /chiv
-COPY . .
+
+COPY go.mod .
+COPY go.sum .
+COPY Makefile .
 
 RUN make setup
+
+COPY . .

@@ -15,15 +15,6 @@ type Archiver struct {
 	// TODO other options like batch size... in bytes or rows?
 }
 
-type Option func(*Archiver)
-
-type Format int
-
-const (
-	CSV Format = iota
-	JSON
-)
-
 const (
 	DefaultFormat = CSV
 )
