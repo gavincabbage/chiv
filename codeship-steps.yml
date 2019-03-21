@@ -1,0 +1,8 @@
+- type: parallel
+  steps:
+    - name: test
+      service: test
+      command: make test
+    - name: lint
+      service: lint
+      command: make lint

@@ -1,0 +1,22 @@
+test:
+  build: .
+  cached: true
+  depends_on:
+    - postgres
+    - s3
+
+lint:
+  build: .
+  cached: true
+
+postgres:
+  image: postgres:11.2
+  environment:
+    - POSTGRES_DB=test
+  cached: true
+
+s3:
+  image: localstack/localstack:0.9.0
+  environment:
+    - SERVICES=s3
+  cached: true
