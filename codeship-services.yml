@@ -1,6 +1,12 @@
 test:
   build: .
   cached: true
+  environment:
+    - AWS_ACCESS_KEY_ID=bogus
+    - AWS_SECRET_KEY=bogus
+    - AWS_REGION=us-east-1
+    - AWS_ENDPOINT=http://s3:4572
+    - DATABASE_URL=postgres://postgres@postgres/test?sslmode=disable
   depends_on:
     - postgres
     - s3
