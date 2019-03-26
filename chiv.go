@@ -4,14 +4,18 @@ package chiv
 import (
 	"context"
 	"database/sql"
+	"encoding/csv"
+	"fmt"
 	"io"
 
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 )
 
 type Archiver struct {
 	db     *sql.DB
 	s3     *s3manager.Uploader
+	key    string
 	format Format
 }
 
@@ -35,12 +39,12 @@ func NewArchiver(db *sql.DB, s3 *s3manager.Uploader, options ...Option) *Archive
 }
 
 // Archive a database table to S3.
-func (a *Archiver) Archive(table string, bucket string, options ...Option) error {
+func (a *Archiver) Archive(table, bucket string, options ...Option) error {
 	return a.ArchiveWithContext(context.Background(), table, bucket, options...)
 }
 
 // Archive a database table to S3 with context.
-func (a *Archiver) ArchiveWithContext(ctx context.Context, table string, bucket string, options ...Option) error {
+func (a *Archiver) ArchiveWithContext(ctx context.Context, table, bucket string, options ...Option) error {
 	archiver := archiver{
 		db:     a.db,
 		s3:     a.s3,
@@ -52,7 +56,7 @@ func (a *Archiver) ArchiveWithContext(ctx context.Context, table string, bucket 
 		option(archiver.config)
 	}
 
-	return archiver.archive(table)
+	return archiver.archive(table, bucket)
 }
 
 type archiver struct {
@@ -62,28 +66,106 @@ type archiver struct {
 	config *Archiver
 }
 
-func (a *archiver) archive(table string) error {
-	const selectAll = "SELECT * FROM $1"
+func (a *archiver) archive(table, bucket string) error {
+	errs := make(chan error)
+	r, w := io.Pipe()
+	defer r.Close()
+	defer w.Close()
 
-	rows, err := a.db.QueryContext(a.ctx, selectAll, table)
-	if err != nil {
+	go func() {
+		cw := csv.NewWriter(w)
+
+		selectAll := fmt.Sprintf(`select * from "%s";`, table)
+		rows, err := a.db.QueryContext(a.ctx, selectAll)
+		if err != nil {
+			errs <- err
+			return
+		}
+		defer rows.Close()
+
+		columns, err := rows.Columns()
+		if err != nil {
+			errs <- err
+			return
+		}
+
+		if err := cw.Write(columns); err != nil {
+			errs <- err
+			return
+		}
+
+		var (
+			rawBytes = make([]sql.RawBytes, len(columns))
+			record   = make([]string, len(columns))
+			dest     = make([]interface{}, len(columns))
+		)
+		for i := range rawBytes {
+			dest[i] = &rawBytes[i]
+		}
+
+		for rows.Next() {
+			err = rows.Scan(dest...)
+			if err != nil {
+				errs <- err
+				return
+			}
+
+			for i, raw := range rawBytes {
+				if raw == nil {
+					record[i] = "\\N"
+				} else {
+					record[i] = string(raw)
+				}
+			}
+
+			if err := cw.Write(record); err != nil {
+				errs <- err
+				return
+			}
+		}
+
+		if err := rows.Err(); err != nil {
+			errs <- err
+			return
+		}
+
+		cw.Flush()
+		if err := cw.Error(); err != nil {
+			errs <- err
+			return
+		}
+
+		if err := w.Close(); err != nil {
+			errs <- err
+			return
+		}
+	}()
+
+	go func() {
+		if a.config.key == "" {
+			switch a.config.format {
+			case CSV:
+				a.config.key = fmt.Sprintf("%s.csv", table)
+			case JSON:
+				a.config.key = fmt.Sprintf("%s.json", table)
+			}
+		}
+
+		if _, err := a.s3.UploadWithContext(a.ctx, &s3manager.UploadInput{
+			Body:   r,
+			Bucket: aws.String(bucket),
+			Key:    aws.String(a.config.key),
+		}); err != nil {
+			errs <- err
+		}
+
+		errs <- nil
+	}()
+
+	select {
+	case err := <-errs:
 		return err
+	case <-a.ctx.Done():
+		return nil
 	}
-	defer rows.Close()
-
-	r, w := io.Pipe() // TODO figuring this all out...
-
-	for rows.Next() {
-
-	}
-
-	if err := rows.Err(); err != nil {
-		return err
-	}
-
-	// TODO the work
-	// 		db cursor selecting: ???
-	// 		s3 streaming: https://docs.aws.amazon.com/code-samples/latest/catalog/go-s3-upload_arbitrary_sized_stream.go.html
-
-	return nil // TODO return size or some other info along w/ error?
 }

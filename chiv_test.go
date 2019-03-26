@@ -4,15 +4,16 @@ package chiv_test
 
 import (
 	"database/sql"
+	"io/ioutil"
 	"os"
+	"strings"
 	"testing"
-
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	_ "github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,95 +21,136 @@ import (
 	"github.com/gavincabbage/chiv"
 )
 
-func TestArchive(t *testing.T) {
-	var (
-		db         = newDB(t)
-		s3client   = newS3(t)
-		uploader   = s3manager.NewUploaderWithClient(s3client)
-		downloader = s3manager.NewDownloaderWithClient(s3client)
-	)
-
-	mustExec(t, db, `
-	CREATE TABLE IF NOT EXISTS "test_table" (
-		id UUID PRIMARY KEY,
-		text_column TEXT,
-		char_column VARCHAR(50),
-		int_column INTEGER,
-		bool_column BOOLEAN,
-		ts_column TIMESTAMP
-	);`)
-	defer mustExec(t, db, `DROP TABLE "test_table";`)
-
-	mustExec(t, db, `
-	INSERT INTO "test_table" VALUES (
-		'ea09d13c-f441-4550-9492-115f8b409c96',
-		'some text',
-		'some chars',
-		42,
-		true,
-		'2018-01-04'::timestamp
-	);`)
-
-	mustExec(t, db, `
-	INSERT INTO "test_table" VALUES (
-		'7530a381-526a-42aa-a9ba-97fb2bca283f',
-		'some more text',
-		'some more chars',
-		101,
-		false,
-		'2018-02-05'::timestamp
-	);`)
-
-	expected := `id,text_column,char_column,int_column,bool_column,ts_column
-ea09d13c-f441-4550-9492-115f8b409c96,some text,some chars,42,true,SOMETIMESTAMP
-7530a381-526a-42aa-a9ba-97fb2bca283f,some more text,some more chars,101,false,OTHERTIMESTAMP`
-
-	if _, err := s3client.CreateBucket(&s3.CreateBucketInput{
-		Bucket: aws.String("test_bucket"),
-	}); err != nil {
-		t.Error(err)
+func TestArchiver_Archive(t *testing.T) {
+	cases := []struct {
+		name     string
+		driver   string
+		database string
+		setup    string
+		teardown string
+		expected string
+		bucket   string
+		table    string
+		key      string
+		options  []chiv.Option
+	}{
+		{
+			name:     "postgres to csv",
+			driver:   "postgres",
+			database: os.Getenv("POSTGRES_URL"),
+			setup:    "./testdata/postgres_to_csv_setup.sql",
+			teardown: "./testdata/postgres_to_csv_teardown.sql",
+			expected: "./testdata/postgres_to_csv.csv",
+			bucket:   "postgres_to_csv_bucket",
+			table:    "postgres_to_csv_table",
+			key:      "postgres_to_csv_table.csv",
+			options:  []chiv.Option{},
+		},
+		{
+			name:     "postgres to csv key override",
+			driver:   "postgres",
+			database: os.Getenv("POSTGRES_URL"),
+			setup:    "./testdata/postgres_to_csv_setup.sql",
+			teardown: "./testdata/postgres_to_csv_teardown.sql",
+			expected: "./testdata/postgres_to_csv.csv",
+			bucket:   "postgres_to_csv_bucket",
+			table:    "postgres_to_csv_table",
+			key:      "postgres_to_csv_custom_key",
+			options: []chiv.Option{
+				chiv.WithKey("postgres_to_csv_custom_key"),
+			},
+		},
 	}
 
-	subject := chiv.NewArchiver(db, uploader)
-	assert.NotNil(t, subject)
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			var (
+				db         = newDB(t, test.driver, test.database)
+				s3client   = newS3Client(t, os.Getenv("AWS_REGION"), os.Getenv("AWS_ENDPOINT"))
+				uploader   = s3manager.NewUploaderWithClient(s3client)
+				downloader = s3manager.NewDownloaderWithClient(s3client)
+			)
 
-	err := subject.Archive("test_table", "test_bucket")
-	require.NoError(t, err)
+			exec(t, db, test.setup)
+			defer exec(t, db, test.teardown)
 
-	b := &aws.WriteAtBuffer{}
-	n, err := downloader.Download(b, &s3.GetObjectInput{
-		Bucket: aws.String("test_bucket"),
-		Key:    aws.String("test_table.csv"),
-	})
-	require.NoError(t, err)
-	require.Equal(t, len([]byte(expected)), n)
-	require.Equal(t, expected, string(b.Bytes()))
+			createBucket(t, s3client, test.bucket)
+			expected := readFile(t, test.expected)
+
+			subject := chiv.NewArchiver(db, uploader)
+			assert.NotNil(t, subject)
+
+			require.NoError(t, subject.Archive(test.table, test.bucket, test.options...))
+
+			n, actual := download(t, downloader, test.bucket, test.key)
+			require.Equal(t, len([]byte(expected)), n)
+			require.Equal(t, expected, actual)
+		})
+	}
 }
 
-func newDB(t *testing.T) *sql.DB {
-	db, err := sql.Open("postgres", os.Getenv("DATABASE_URL"))
-	require.NoError(t, err)
+func newDB(t *testing.T, driver string, url string) *sql.DB {
+	db, err := sql.Open(driver, url)
+	if err != nil {
+		t.Error(err)
+	}
 
 	return db
 }
 
-func newS3(t *testing.T) *s3.S3 {
+func newS3Client(t *testing.T, region string, endpoint string) *s3.S3 {
 	awsConfig := aws.NewConfig().
-		WithRegion(os.Getenv("AWS_REGION")).
+		WithRegion(region).
 		WithDisableSSL(true).
 		WithCredentials(credentials.NewEnvCredentials())
 
 	awsSession, err := session.NewSession(awsConfig)
-	require.NoError(t, err)
+	if err != nil {
+		t.Error(err)
+	}
 
 	client := s3.New(awsSession)
-	client.Endpoint = os.Getenv("AWS_ENDPOINT")
+	client.Endpoint = endpoint
 
 	return client
 }
 
-func mustExec(t *testing.T, db *sql.DB, query string) {
-	if _, err := db.Exec(query); err != nil {
+func exec(t *testing.T, db *sql.DB, path string) {
+	file := readFile(t, path)
+	statements := strings.Split(string(file), ";\n")
+	for _, statement := range statements {
+		if _, err := db.Exec(statement); err != nil {
+			t.Error(err)
+		}
+	}
+}
+
+func createBucket(t *testing.T, client *s3.S3, name string) {
+	if _, err := client.CreateBucket(&s3.CreateBucketInput{
+		Bucket: aws.String(name),
+	}); err != nil {
 		t.Error(err)
 	}
+}
+
+func readFile(t *testing.T, path string) string {
+	contents, err := ioutil.ReadFile(path)
+	if err != nil {
+		t.Error(err)
+	}
+
+	return string(contents)
+}
+
+func download(t *testing.T, downloader *s3manager.Downloader, bucket string, key string) (int, string) {
+	b := &aws.WriteAtBuffer{}
+	n, err := downloader.Download(b, &s3.GetObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		t.Error(err)
+	}
+
+	return int(n), string(b.Bytes())
 }

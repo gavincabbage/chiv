@@ -6,7 +6,7 @@ test:
     - AWS_SECRET_KEY=bogus
     - AWS_REGION=us-east-1
     - AWS_ENDPOINT=http://s3:4572
-    - DATABASE_URL=postgres://postgres@postgres/test?sslmode=disable
+    - POSTGRES_URL=postgres://postgres:password@postgres/test?sslmode=disable
   depends_on:
     - postgres
     - s3
@@ -19,6 +19,7 @@ postgres:
   image: postgres:11.2
   environment:
     - POSTGRES_DB=test
+    - POSTGRES_PASSWORD=password
   cached: true
 
 s3:

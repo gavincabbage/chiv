@@ -14,3 +14,9 @@ func WithFormat(f Format) Option {
 		a.format = f
 	}
 }
+
+func WithKey(k string) Option {
+	return func(a *Archiver) {
+		a.key = k
+	}
+}
