@@ -12,14 +12,18 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 )
 
+// Archiver archives arbitrarily large relational database tables to Amazon S3. It contains a database connection
+// and upload client. Options set on creation apply to all calls to Archive unless overridden.
 type Archiver struct {
 	db     *sql.DB
 	s3     *s3manager.Uploader
-	key    string
 	format Format
+	key    string
+	null   []byte
 }
 
 const (
+	// DefaultFormat is CSV.
 	DefaultFormat = CSV
 )
 
@@ -66,101 +70,14 @@ type archiver struct {
 	config *Archiver
 }
 
-func (a *archiver) archive(table, bucket string) error {
+func (a *archiver) archive(table string, bucket string) error {
 	errs := make(chan error)
 	r, w := io.Pipe()
 	defer r.Close()
 	defer w.Close()
 
-	go func() {
-		cw := csv.NewWriter(w)
-
-		selectAll := fmt.Sprintf(`select * from "%s";`, table)
-		rows, err := a.db.QueryContext(a.ctx, selectAll)
-		if err != nil {
-			errs <- err
-			return
-		}
-		defer rows.Close()
-
-		columns, err := rows.Columns()
-		if err != nil {
-			errs <- err
-			return
-		}
-
-		if err := cw.Write(columns); err != nil {
-			errs <- err
-			return
-		}
-
-		var (
-			rawBytes = make([]sql.RawBytes, len(columns))
-			record   = make([]string, len(columns))
-			dest     = make([]interface{}, len(columns))
-		)
-		for i := range rawBytes {
-			dest[i] = &rawBytes[i]
-		}
-
-		for rows.Next() {
-			err = rows.Scan(dest...)
-			if err != nil {
-				errs <- err
-				return
-			}
-
-			for i, raw := range rawBytes {
-				if raw == nil {
-					record[i] = "\\N"
-				} else {
-					record[i] = string(raw)
-				}
-			}
-
-			if err := cw.Write(record); err != nil {
-				errs <- err
-				return
-			}
-		}
-
-		if err := rows.Err(); err != nil {
-			errs <- err
-			return
-		}
-
-		cw.Flush()
-		if err := cw.Error(); err != nil {
-			errs <- err
-			return
-		}
-
-		if err := w.Close(); err != nil {
-			errs <- err
-			return
-		}
-	}()
-
-	go func() {
-		if a.config.key == "" {
-			switch a.config.format {
-			case CSV:
-				a.config.key = fmt.Sprintf("%s.csv", table)
-			case JSON:
-				a.config.key = fmt.Sprintf("%s.json", table)
-			}
-		}
-
-		if _, err := a.s3.UploadWithContext(a.ctx, &s3manager.UploadInput{
-			Body:   r,
-			Bucket: aws.String(bucket),
-			Key:    aws.String(a.config.key),
-		}); err != nil {
-			errs <- err
-		}
-
-		errs <- nil
-	}()
+	go a.download(w, table, errs)
+	go a.upload(r, table, bucket, errs)
 
 	select {
 	case err := <-errs:
@@ -168,4 +85,100 @@ func (a *archiver) archive(table, bucket string) error {
 	case <-a.ctx.Done():
 		return nil
 	}
+}
+
+func (a *archiver) download(wc io.WriteCloser, table string, errs chan error) {
+	var w formatter
+	switch a.config.format {
+	case YAML:
+		w = &yamlFormatter{}
+	case JSON:
+		w = &jsonFormatter{w: wc}
+	default:
+		w = &csvFormatter{w: csv.NewWriter(wc)}
+	}
+
+	selectAll := fmt.Sprintf(`select * from "%s";`, table)
+	rows, err := a.db.QueryContext(a.ctx, selectAll)
+	if err != nil {
+		errs <- err
+		return
+	}
+	defer rows.Close()
+
+	columns, err := rows.ColumnTypes()
+	if err != nil {
+		errs <- err
+		return
+	}
+
+	if err := w.Begin(columns); err != nil {
+		errs <- err
+		return
+	}
+
+	var (
+		rawBytes = make([]sql.RawBytes, len(columns))
+		record   = make([]interface{}, len(columns))
+	)
+	for i := range rawBytes {
+		record[i] = &rawBytes[i]
+	}
+
+	for rows.Next() {
+		err = rows.Scan(record...)
+		if err != nil {
+			errs <- err
+			return
+		}
+
+		for i, raw := range rawBytes {
+			if raw == nil && a.config.null != nil {
+				rawBytes[i] = a.config.null
+			}
+		}
+
+		if err := w.Write(rawBytes); err != nil {
+			errs <- err
+			return
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		errs <- err
+		return
+	}
+
+	if err := w.End(); err != nil {
+		errs <- err
+		return
+	}
+
+	if err := wc.Close(); err != nil {
+		errs <- err
+		return
+	}
+}
+
+func (a *archiver) upload(r io.Reader, table string, bucket string, errs chan error) {
+	if a.config.key == "" {
+		switch a.config.format {
+		case YAML:
+			a.config.key = fmt.Sprintf("%s.yml", table)
+		case JSON:
+			a.config.key = fmt.Sprintf("%s.json", table)
+		default:
+			a.config.key = fmt.Sprintf("%s.csv", table)
+		}
+	}
+
+	if _, err := a.s3.UploadWithContext(a.ctx, &s3manager.UploadInput{
+		Body:   r,
+		Bucket: aws.String(bucket),
+		Key:    aws.String(a.config.key),
+	}); err != nil {
+		errs <- err
+	}
+
+	errs <- nil
 }

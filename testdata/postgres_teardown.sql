@@ -1,0 +1,1 @@
+DROP TABLE "postgres_table";

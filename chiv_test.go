@@ -38,26 +38,54 @@ func TestArchiver_Archive(t *testing.T) {
 			name:     "postgres to csv",
 			driver:   "postgres",
 			database: os.Getenv("POSTGRES_URL"),
-			setup:    "./testdata/postgres_to_csv_setup.sql",
-			teardown: "./testdata/postgres_to_csv_teardown.sql",
-			expected: "./testdata/postgres_to_csv.csv",
-			bucket:   "postgres_to_csv_bucket",
-			table:    "postgres_to_csv_table",
-			key:      "postgres_to_csv_table.csv",
+			setup:    "./testdata/postgres_setup.sql",
+			teardown: "./testdata/postgres_teardown.sql",
+			expected: "./testdata/postgres.csv",
+			bucket:   "postgres_bucket",
+			table:    "postgres_table",
+			key:      "postgres_table.csv",
 			options:  []chiv.Option{},
 		},
 		{
 			name:     "postgres to csv key override",
 			driver:   "postgres",
 			database: os.Getenv("POSTGRES_URL"),
-			setup:    "./testdata/postgres_to_csv_setup.sql",
-			teardown: "./testdata/postgres_to_csv_teardown.sql",
-			expected: "./testdata/postgres_to_csv.csv",
-			bucket:   "postgres_to_csv_bucket",
-			table:    "postgres_to_csv_table",
-			key:      "postgres_to_csv_custom_key",
+			setup:    "./testdata/postgres_setup.sql",
+			teardown: "./testdata/postgres_teardown.sql",
+			expected: "./testdata/postgres.csv",
+			bucket:   "postgres_bucket",
+			table:    "postgres_table",
+			key:      "postgres_custom_key",
 			options: []chiv.Option{
-				chiv.WithKey("postgres_to_csv_custom_key"),
+				chiv.WithKey("postgres_custom_key"),
+			},
+		},
+		{
+			name:     "postgres to csv null override",
+			driver:   "postgres",
+			database: os.Getenv("POSTGRES_URL"),
+			setup:    "./testdata/postgres_setup.sql",
+			teardown: "./testdata/postgres_teardown.sql",
+			expected: "./testdata/postgres_with_null.csv",
+			bucket:   "postgres_bucket",
+			table:    "postgres_table",
+			key:      "postgres_table.csv",
+			options: []chiv.Option{
+				chiv.WithNull("custom_null"),
+			},
+		},
+		{
+			name:     "postgres to json",
+			driver:   "postgres",
+			database: os.Getenv("POSTGRES_URL"),
+			setup:    "./testdata/postgres_setup.sql",
+			teardown: "./testdata/postgres_teardown.sql",
+			expected: "./testdata/postgres.json",
+			bucket:   "postgres_bucket",
+			table:    "postgres_table",
+			key:      "postgres_table.json",
+			options: []chiv.Option{
+				chiv.WithFormat(chiv.JSON),
 			},
 		},
 	}
@@ -82,8 +110,7 @@ func TestArchiver_Archive(t *testing.T) {
 
 			require.NoError(t, subject.Archive(test.table, test.bucket, test.options...))
 
-			n, actual := download(t, downloader, test.bucket, test.key)
-			require.Equal(t, len([]byte(expected)), n)
+			actual := download(t, downloader, test.bucket, test.key)
 			require.Equal(t, expected, actual)
 		})
 	}
@@ -142,9 +169,9 @@ func readFile(t *testing.T, path string) string {
 	return string(contents)
 }
 
-func download(t *testing.T, downloader *s3manager.Downloader, bucket string, key string) (int, string) {
+func download(t *testing.T, downloader *s3manager.Downloader, bucket string, key string) string {
 	b := &aws.WriteAtBuffer{}
-	n, err := downloader.Download(b, &s3.GetObjectInput{
+	_, err := downloader.Download(b, &s3.GetObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(key),
 	})
@@ -152,5 +179,5 @@ func download(t *testing.T, downloader *s3manager.Downloader, bucket string, key
 		t.Error(err)
 	}
 
-	return int(n), string(b.Bytes())
+	return string(b.Bytes())
 }
