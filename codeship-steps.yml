@@ -2,7 +2,7 @@
   steps:
     - name: test
       service: test
-      command: make test
+      command: go test -p 1 -covermode=atomic -timeout=30s ./...
     - name: lint
       service: lint
-      command: make lint
+      command: golangci-lint run

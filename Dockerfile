@@ -2,6 +2,9 @@ ARG GO_VERSION=1.12
 
 FROM golang:${GO_VERSION}-alpine
 
+ENV GOBIN=/bin
+ENV PATH=${GOBIN}:${PATH}
+
 RUN apk update
 RUN apk add --no-cache \
     build-base \
@@ -12,8 +15,8 @@ WORKDIR /chiv
 
 COPY go.mod .
 COPY go.sum .
-COPY Makefile .
 
-RUN make setup
+RUN go mod download
+RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint
 
 COPY . .

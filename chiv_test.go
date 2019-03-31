@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gavincabbage/pkg/chiv"
+	"github.com/gavincabbage/chiv"
 )
 
 func TestArchiver_Archive(t *testing.T) {
