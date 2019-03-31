@@ -1,5 +1,5 @@
 // Package chiv archives arbitrarily large relational database tables to Amazon S3.
-package chiv
+package pkg
 
 import (
 	"context"
@@ -47,7 +47,7 @@ func (a *Archiver) Archive(table, bucket string, options ...Option) error {
 	return a.ArchiveWithContext(context.Background(), table, bucket, options...)
 }
 
-// Archive a database table to S3 with context.
+// ArchiveWithContext is like Archive, with context.
 func (a *Archiver) ArchiveWithContext(ctx context.Context, table, bucket string, options ...Option) error {
 	archiver := archiver{
 		db:     a.db,

@@ -1,4 +1,4 @@
-package chiv
+package pkg
 
 // Option configures the Archiver. Options can be provided when creating an Archiver or on each call to Archive.
 type Option func(*Archiver)

@@ -1,6 +1,6 @@
 // Package chiv_test includes integration tests external to package chiv
 // and relies on external services postgres and s3 (localstack) via CodeShip.
-package chiv_test
+package pkg_test
 
 import (
 	"database/sql"
@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gavincabbage/chiv"
+	"github.com/gavincabbage/pkg/chiv"
 )
 
 func TestArchiver_Archive(t *testing.T) {
