@@ -21,12 +21,6 @@ var (
 	ErrRecordLength = errors.New("record length does not match number of columns")
 )
 
-type formatter interface {
-	Begin([]*sql.ColumnType) error
-	Write([]sql.RawBytes) error
-	End() error
-}
-
 // csvFormatter formats columns in CSV format.
 type csvFormatter struct {
 	w     *csv.Writer

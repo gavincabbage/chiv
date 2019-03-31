@@ -87,6 +87,12 @@ func (a *archiver) archive(table string, bucket string) error {
 	}
 }
 
+type formatter interface {
+	Begin([]*sql.ColumnType) error
+	Write([]sql.RawBytes) error
+	End() error
+}
+
 func (a *archiver) download(wc io.WriteCloser, table string, errs chan error) {
 	var w formatter
 	switch a.config.format {
