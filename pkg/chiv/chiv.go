@@ -1,5 +1,5 @@
 // Package chiv archives arbitrarily large relational database tables to Amazon S3.
-package pkg
+package chiv
 
 import (
 	"context"

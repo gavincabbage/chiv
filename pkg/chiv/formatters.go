@@ -1,4 +1,4 @@
-package pkg
+package chiv
 
 import (
 	"database/sql"
