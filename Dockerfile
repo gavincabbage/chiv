@@ -2,9 +2,6 @@ ARG GO_VERSION=1.12
 
 FROM golang:${GO_VERSION}-alpine
 
-ENV GOBIN=/bin
-ENV PATH=${GOBIN}:${PATH}
-
 RUN apk update
 RUN apk add --no-cache \
     build-base \
