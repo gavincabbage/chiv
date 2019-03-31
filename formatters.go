@@ -17,7 +17,8 @@ const (
 )
 
 var (
-	ErrRecordLength = errors.New("record length does not match number of keys")
+	// ErrRecordLength does not match the number of columns.
+	ErrRecordLength = errors.New("record length does not match number of columns")
 )
 
 type formatter interface {
