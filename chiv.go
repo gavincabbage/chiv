@@ -89,7 +89,7 @@ func (a *archiver) archive(table string, bucket string) error {
 
 type formatter interface {
 	Begin([]*sql.ColumnType) error
-	Write([]sql.RawBytes) error
+	Write([][]byte) error
 	End() error
 }
 
@@ -125,14 +125,15 @@ func (a *archiver) download(wc io.WriteCloser, table string, errs chan error) {
 
 	var (
 		rawBytes = make([]sql.RawBytes, len(columns))
-		record   = make([]interface{}, len(columns))
+		scanned  = make([]interface{}, len(columns))
+		record   = make([][]byte, len(columns))
 	)
 	for i := range rawBytes {
-		record[i] = &rawBytes[i]
+		scanned[i] = &rawBytes[i]
 	}
 
 	for rows.Next() {
-		err = rows.Scan(record...)
+		err = rows.Scan(scanned...)
 		if err != nil {
 			errs <- err
 			return
@@ -140,11 +141,13 @@ func (a *archiver) download(wc io.WriteCloser, table string, errs chan error) {
 
 		for i, raw := range rawBytes {
 			if raw == nil && a.config.null != nil {
-				rawBytes[i] = a.config.null
+				record[i] = a.config.null
+			} else {
+				record[i] = raw
 			}
 		}
 
-		if err := w.Write(rawBytes); err != nil {
+		if err := w.Write(record); err != nil {
 			errs <- err
 			return
 		}

@@ -5,7 +5,7 @@
 [![GoDoc](https://godoc.org/github.com/gavincabbage/chiv?status.svg)](https://godoc.org/github.com/gavincabbage/chiv)
 [![License](http://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/gavincabbage/chiv/blob/master/LICENSE)
 
-Archive arbitrarily large relational database tables to Amazon S3.
+Archive relational database tables to Amazon S3.
 
 ## Example
 

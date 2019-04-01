@@ -30,15 +30,15 @@ type csvFormatter struct {
 func (c *csvFormatter) Begin(columns []*sql.ColumnType) error {
 	c.count = len(columns)
 
-	header := make([]string, 0, c.count)
-	for _, column := range columns {
-		header = append(header, column.Name())
+	header := make([]string, c.count)
+	for i, column := range columns {
+		header[i] = column.Name()
 	}
 
 	return c.w.Write(header)
 }
 
-func (c *csvFormatter) Write(record []sql.RawBytes) error {
+func (c *csvFormatter) Write(record [][]byte) error {
 	if c.count != len(record) {
 		return ErrRecordLength
 	}
@@ -65,7 +65,7 @@ func (c *yamlFormatter) Begin(columns []*sql.ColumnType) error {
 	return nil
 }
 
-func (c *yamlFormatter) Write(record []sql.RawBytes) error {
+func (c *yamlFormatter) Write(record [][]byte) error {
 	if len(c.columns) != len(record) {
 		return ErrRecordLength
 	}
@@ -89,7 +89,7 @@ func (c *jsonFormatter) Begin(columns []*sql.ColumnType) error {
 	return writeByte(c.w, openBracket)
 }
 
-func (c *jsonFormatter) Write(record []sql.RawBytes) error {
+func (c *jsonFormatter) Write(record [][]byte) error {
 	if len(c.columns) != len(record) {
 		return ErrRecordLength
 	}
@@ -141,7 +141,7 @@ func writeByte(w io.Writer, b byte) error {
 	return nil
 }
 
-func parse(b sql.RawBytes, t string) (interface{}, error) {
+func parse(b []byte, t string) (interface{}, error) {
 	if b == nil {
 		return nil, nil
 	}
@@ -150,7 +150,7 @@ func parse(b sql.RawBytes, t string) (interface{}, error) {
 		s            = string(b)
 		boolRegex    = regexp.MustCompile("BOOL*")
 		intRegex     = regexp.MustCompile("INT*")
-		decimalRegex = regexp.MustCompile("DECIMAL*")
+		decimalRegex = regexp.MustCompile("DECIMAL*|FLOAT*|NUMERIC*")
 	)
 	switch {
 	case boolRegex.MatchString(t):
