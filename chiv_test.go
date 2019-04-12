@@ -43,7 +43,7 @@ func TestArchiver_Archive(t *testing.T) {
 			expected: "./testdata/postgres.csv",
 			bucket:   "postgres_bucket",
 			table:    "postgres_table",
-			key:      "postgres_table.csv",
+			key:      "postgres_table",
 			options:  []chiv.Option{},
 		},
 		{
@@ -55,9 +55,9 @@ func TestArchiver_Archive(t *testing.T) {
 			expected: "./testdata/postgres.csv",
 			bucket:   "postgres_bucket",
 			table:    "postgres_table",
-			key:      "postgres_custom_key",
+			key:      "postgres_table.csv",
 			options: []chiv.Option{
-				chiv.WithKey("postgres_custom_key"),
+				chiv.WithKey("postgres_table.csv"),
 			},
 		},
 		{
@@ -69,7 +69,7 @@ func TestArchiver_Archive(t *testing.T) {
 			expected: "./testdata/postgres_with_null.csv",
 			bucket:   "postgres_bucket",
 			table:    "postgres_table",
-			key:      "postgres_table.csv",
+			key:      "postgres_table",
 			options: []chiv.Option{
 				chiv.WithNull("custom_null"),
 			},
@@ -86,6 +86,7 @@ func TestArchiver_Archive(t *testing.T) {
 			key:      "postgres_table.json",
 			options: []chiv.Option{
 				chiv.WithFormat(chiv.JSON),
+				chiv.WithKey("postgres_table.json"),
 			},
 		},
 	}

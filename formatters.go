@@ -4,22 +4,37 @@ import (
 	"database/sql"
 	"encoding/csv"
 	"encoding/json"
-	"errors"
 	"io"
 	"regexp"
 	"strconv"
 )
 
-const (
-	openBracket  = byte('[')
-	closeBracket = byte(']')
-	comma        = byte(',')
-)
+// FormatterFunc returns an initialized Formatter.
+type FormatterFunc func(io.Writer, []*sql.ColumnType) (Formatter, error)
 
-var (
-	// ErrRecordLength does not match the number of columns.
-	ErrRecordLength = errors.New("record length does not match number of columns")
-)
+// Formatter formats and writes records.
+type Formatter interface {
+	Format([][]byte) error
+	Close() error
+}
+
+func CSV(w io.Writer, columns []*sql.ColumnType) (Formatter, error) {
+	f := &csvFormatter{
+		w:     csv.NewWriter(w),
+		count: len(columns),
+	}
+
+	header := make([]string, f.count)
+	for i, column := range columns {
+		header[i] = column.Name()
+	}
+
+	if err := f.w.Write(header); err != nil {
+		return nil, err
+	}
+
+	return f, nil
+}
 
 // csvFormatter formats columns in CSV format.
 type csvFormatter struct {
@@ -27,33 +42,26 @@ type csvFormatter struct {
 	count int
 }
 
-func (c *csvFormatter) Begin(columns []*sql.ColumnType) error {
-	c.count = len(columns)
-
-	header := make([]string, c.count)
-	for i, column := range columns {
-		header[i] = column.Name()
-	}
-
-	return c.w.Write(header)
-}
-
-func (c *csvFormatter) Write(record [][]byte) error {
-	if c.count != len(record) {
+func (f *csvFormatter) Format(record [][]byte) error {
+	if f.count != len(record) {
 		return ErrRecordLength
 	}
 
-	strings := make([]string, c.count)
+	strings := make([]string, f.count)
 	for i, item := range record {
 		strings[i] = string(item)
 	}
 
-	return c.w.Write(strings)
+	return f.w.Write(strings)
 }
 
-func (c *csvFormatter) End() error {
-	c.w.Flush()
-	return c.w.Error()
+func (f *csvFormatter) Close() error {
+	f.w.Flush()
+	return f.w.Error()
+}
+
+func YAML(w io.Writer, columns []*sql.ColumnType) (Formatter, error) {
+	return &yamlFormatter{columns: columns}, nil
 }
 
 // yamlFormatter formats columns in YAML format.
@@ -61,11 +69,7 @@ type yamlFormatter struct {
 	columns []*sql.ColumnType
 }
 
-func (c *yamlFormatter) Begin(columns []*sql.ColumnType) error {
-	return nil
-}
-
-func (c *yamlFormatter) Write(record [][]byte) error {
+func (c *yamlFormatter) Format(record [][]byte) error {
 	if len(c.columns) != len(record) {
 		return ErrRecordLength
 	}
@@ -73,8 +77,27 @@ func (c *yamlFormatter) Write(record [][]byte) error {
 	return nil
 }
 
-func (c *yamlFormatter) End() error {
+func (c *yamlFormatter) Close() error {
 	return nil
+}
+
+const (
+	openBracket  = byte('[')
+	closeBracket = byte(']')
+	comma        = byte(',')
+)
+
+func JSON(w io.Writer, columns []*sql.ColumnType) (Formatter, error) {
+	f := &jsonFormatter{
+		w:       w,
+		columns: columns,
+	}
+
+	if err := f.writeByte(openBracket); err != nil {
+		return nil, err
+	}
+
+	return f, nil
 }
 
 // jsonFormatter formats columns in JSON format.
@@ -84,19 +107,14 @@ type jsonFormatter struct {
 	notFirst bool
 }
 
-func (c *jsonFormatter) Begin(columns []*sql.ColumnType) error {
-	c.columns = columns
-	return writeByte(c.w, openBracket)
-}
-
-func (c *jsonFormatter) Write(record [][]byte) error {
-	if len(c.columns) != len(record) {
+func (f *jsonFormatter) Format(record [][]byte) error {
+	if len(f.columns) != len(record) {
 		return ErrRecordLength
 	}
 
 	m := make(map[string]interface{})
-	for i, column := range c.columns {
-		r, err := parse(record[i], c.columns[i].DatabaseTypeName())
+	for i, column := range f.columns {
+		r, err := parse(record[i], f.columns[i].DatabaseTypeName())
 		if err != nil {
 			return err
 		}
@@ -108,30 +126,30 @@ func (c *jsonFormatter) Write(record [][]byte) error {
 		return err
 	}
 
-	if c.notFirst {
-		err := writeByte(c.w, comma)
+	if f.notFirst {
+		err := f.writeByte(comma)
 		if err != nil {
 			return err
 		}
 	}
 
-	n, err := c.w.Write(b)
+	n, err := f.w.Write(b)
 	if err != nil {
 		return err
 	} else if n != len(b) {
 		return io.ErrShortWrite
 	}
 
-	c.notFirst = true
+	f.notFirst = true
 	return nil
 }
 
-func (c *jsonFormatter) End() error {
-	return writeByte(c.w, closeBracket)
+func (f *jsonFormatter) Close() error {
+	return f.writeByte(closeBracket)
 }
 
-func writeByte(w io.Writer, b byte) error {
-	n, err := w.Write([]byte{b})
+func (f *jsonFormatter) writeByte(b byte) error {
+	n, err := f.w.Write([]byte{b})
 	if err != nil {
 		return err
 	} else if n != 1 {

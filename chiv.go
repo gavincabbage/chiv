@@ -4,7 +4,7 @@ package chiv
 import (
 	"context"
 	"database/sql"
-	"encoding/csv"
+	"errors"
 	"fmt"
 	"io"
 
@@ -12,31 +12,39 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 )
 
+var (
+	// DefaultFormat is CSV.
+	DefaultFormatFunc = CSV
+	// ErrRecordLength does not match the number of columns.
+	ErrRecordLength = errors.New("record length does not match number of columns")
+)
+
 // Archiver archives arbitrarily large relational database tables to Amazon S3. It contains a database connection
 // and upload client. Options set on creation apply to all calls to Archive unless overridden.
 type Archiver struct {
 	db     *sql.DB
 	s3     *s3manager.Uploader
-	format Format
+	config config
+}
+
+type config struct {
+	format FormatterFunc
 	key    string
 	null   []byte
 }
 
-const (
-	// DefaultFormat is CSV.
-	DefaultFormat = CSV
-)
-
 // NewArchiver constructs an Archiver with the given database connection, S3 uploader and options.
 func NewArchiver(db *sql.DB, s3 *s3manager.Uploader, options ...Option) *Archiver {
 	a := Archiver{
-		db:     db,
-		s3:     s3,
-		format: DefaultFormat,
+		db: db,
+		s3: s3,
+		config: config{
+			format: DefaultFormatFunc,
+		},
 	}
 
 	for _, option := range options {
-		option(&a)
+		option(&a.config)
 	}
 
 	return &a
@@ -53,11 +61,11 @@ func (a *Archiver) ArchiveWithContext(ctx context.Context, table, bucket string,
 		db:     a.db,
 		s3:     a.s3,
 		ctx:    ctx,
-		config: a,
+		config: a.config,
 	}
 
 	for _, option := range options {
-		option(archiver.config)
+		option(&archiver.config)
 	}
 
 	return archiver.archive(table, bucket)
@@ -67,7 +75,7 @@ type archiver struct {
 	db     *sql.DB
 	s3     *s3manager.Uploader
 	ctx    context.Context
-	config *Archiver
+	config config
 }
 
 func (a *archiver) archive(table string, bucket string) error {
@@ -87,23 +95,7 @@ func (a *archiver) archive(table string, bucket string) error {
 	}
 }
 
-type formatter interface {
-	Begin([]*sql.ColumnType) error
-	Write([][]byte) error
-	End() error
-}
-
 func (a *archiver) download(wc io.WriteCloser, table string, errs chan error) {
-	var w formatter
-	switch a.config.format {
-	case YAML:
-		w = &yamlFormatter{}
-	case JSON:
-		w = &jsonFormatter{w: wc}
-	default:
-		w = &csvFormatter{w: csv.NewWriter(wc)}
-	}
-
 	selectAll := fmt.Sprintf(`select * from "%s";`, table)
 	rows, err := a.db.QueryContext(a.ctx, selectAll)
 	if err != nil {
@@ -118,7 +110,8 @@ func (a *archiver) download(wc io.WriteCloser, table string, errs chan error) {
 		return
 	}
 
-	if err := w.Begin(columns); err != nil {
+	f, err := a.config.format(wc, columns)
+	if err != nil {
 		errs <- err
 		return
 	}
@@ -147,7 +140,7 @@ func (a *archiver) download(wc io.WriteCloser, table string, errs chan error) {
 			}
 		}
 
-		if err := w.Write(record); err != nil {
+		if err := f.Format(record); err != nil {
 			errs <- err
 			return
 		}
@@ -158,7 +151,7 @@ func (a *archiver) download(wc io.WriteCloser, table string, errs chan error) {
 		return
 	}
 
-	if err := w.End(); err != nil {
+	if err := f.Close(); err != nil {
 		errs <- err
 		return
 	}
@@ -171,14 +164,8 @@ func (a *archiver) download(wc io.WriteCloser, table string, errs chan error) {
 
 func (a *archiver) upload(r io.Reader, table string, bucket string, errs chan error) {
 	if a.config.key == "" {
-		switch a.config.format {
-		case YAML:
-			a.config.key = fmt.Sprintf("%s.yml", table)
-		case JSON:
-			a.config.key = fmt.Sprintf("%s.json", table)
-		default:
-			a.config.key = fmt.Sprintf("%s.csv", table)
-		}
+		// TODO if a.config.extension or something? can pass in '.json'? wish i could connect to formatter hm
+		a.config.key = table
 	}
 
 	if _, err := a.s3.UploadWithContext(a.ctx, &s3manager.UploadInput{
