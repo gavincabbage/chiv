@@ -4,11 +4,111 @@ import (
 	"database/sql"
 	"encoding/csv"
 	"encoding/json"
-	"errors"
 	"io"
 	"regexp"
 	"strconv"
+
+	yaml "gopkg.in/yaml.v2"
 )
+
+// FormatterFunc returns an initialized Formatter.
+type FormatterFunc func(io.Writer, []*sql.ColumnType) (Formatter, error)
+
+// Formatter formats and writes records.
+type Formatter interface {
+	Format([][]byte) error
+	Close() error
+}
+
+type csvFormatter struct {
+	w     *csv.Writer
+	count int
+}
+
+// CSV returns an initialized csvFormatter.
+func CSV(w io.Writer, columns []*sql.ColumnType) (Formatter, error) {
+	f := &csvFormatter{
+		w:     csv.NewWriter(w),
+		count: len(columns),
+	}
+
+	header := make([]string, f.count)
+	for i, column := range columns {
+		header[i] = column.Name()
+	}
+
+	if err := f.w.Write(header); err != nil {
+		return nil, err
+	}
+
+	return f, nil
+}
+
+// Format a CSV record.
+func (f *csvFormatter) Format(record [][]byte) error {
+	if f.count != len(record) {
+		return ErrRecordLength
+	}
+
+	strings := make([]string, f.count)
+	for i, item := range record {
+		strings[i] = string(item)
+	}
+
+	return f.w.Write(strings)
+}
+
+// Close and flush the CSV formatter.
+func (f *csvFormatter) Close() error {
+	f.w.Flush()
+	return f.w.Error()
+}
+
+type yamlFormatter struct {
+	w       io.Writer
+	columns []*sql.ColumnType
+	parser  *parser
+}
+
+// YAML returns an initialized yamlFormatter.
+func YAML(w io.Writer, columns []*sql.ColumnType) (Formatter, error) {
+	p, err := newParser()
+	if err != nil {
+		return nil, err
+	}
+
+	f := yamlFormatter{
+		w:       w,
+		columns: columns,
+		parser:  p,
+	}
+
+	return &f, nil
+}
+
+// Format a YAML record.
+func (f *yamlFormatter) Format(record [][]byte) error {
+	if len(f.columns) != len(record) {
+		return ErrRecordLength
+	}
+
+	m, err := buildMap(record, f.columns, f.parser)
+	if err != nil {
+		return err
+	}
+	l := []map[string]interface{}{m}
+
+	if err := write(l, f.w, yaml.Marshal); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Close the yamlFormatter.
+func (f *yamlFormatter) Close() error {
+	return nil
+}
 
 const (
 	openBracket  = byte('[')
@@ -16,122 +116,66 @@ const (
 	comma        = byte(',')
 )
 
-var (
-	// ErrRecordLength does not match the number of columns.
-	ErrRecordLength = errors.New("record length does not match number of columns")
-)
-
-// csvFormatter formats columns in CSV format.
-type csvFormatter struct {
-	w     *csv.Writer
-	count int
-}
-
-func (c *csvFormatter) Begin(columns []*sql.ColumnType) error {
-	c.count = len(columns)
-
-	header := make([]string, c.count)
-	for i, column := range columns {
-		header[i] = column.Name()
-	}
-
-	return c.w.Write(header)
-}
-
-func (c *csvFormatter) Write(record [][]byte) error {
-	if c.count != len(record) {
-		return ErrRecordLength
-	}
-
-	strings := make([]string, c.count)
-	for i, item := range record {
-		strings[i] = string(item)
-	}
-
-	return c.w.Write(strings)
-}
-
-func (c *csvFormatter) End() error {
-	c.w.Flush()
-	return c.w.Error()
-}
-
-// yamlFormatter formats columns in YAML format.
-type yamlFormatter struct {
-	columns []*sql.ColumnType
-}
-
-func (c *yamlFormatter) Begin(columns []*sql.ColumnType) error {
-	return nil
-}
-
-func (c *yamlFormatter) Write(record [][]byte) error {
-	if len(c.columns) != len(record) {
-		return ErrRecordLength
-	}
-
-	return nil
-}
-
-func (c *yamlFormatter) End() error {
-	return nil
-}
-
-// jsonFormatter formats columns in JSON format.
 type jsonFormatter struct {
 	w        io.Writer
 	columns  []*sql.ColumnType
 	notFirst bool
+	parser   *parser
 }
 
-func (c *jsonFormatter) Begin(columns []*sql.ColumnType) error {
-	c.columns = columns
-	return writeByte(c.w, openBracket)
+// JSON returns an initialized jsonFormatter with an open JSON array.
+func JSON(w io.Writer, columns []*sql.ColumnType) (Formatter, error) {
+	p, err := newParser()
+	if err != nil {
+		return nil, err
+	}
+
+	f := jsonFormatter{
+		w:       w,
+		columns: columns,
+		parser:  p,
+	}
+
+	if err := f.writeByte(openBracket); err != nil {
+		return nil, err
+	}
+
+	return &f, nil
 }
 
-func (c *jsonFormatter) Write(record [][]byte) error {
-	if len(c.columns) != len(record) {
+// Format a JSON record.
+func (f *jsonFormatter) Format(record [][]byte) error {
+	if len(f.columns) != len(record) {
 		return ErrRecordLength
 	}
 
-	m := make(map[string]interface{})
-	for i, column := range c.columns {
-		r, err := parse(record[i], c.columns[i].DatabaseTypeName())
-		if err != nil {
-			return err
-		}
-		m[column.Name()] = r
-	}
-
-	b, err := json.Marshal(m)
+	m, err := buildMap(record, f.columns, f.parser)
 	if err != nil {
 		return err
 	}
 
-	if c.notFirst {
-		err := writeByte(c.w, comma)
+	if f.notFirst {
+		err := f.writeByte(comma)
 		if err != nil {
 			return err
 		}
 	}
 
-	n, err := c.w.Write(b)
-	if err != nil {
+	if err := write(m, f.w, json.Marshal); err != nil {
 		return err
-	} else if n != len(b) {
-		return io.ErrShortWrite
 	}
 
-	c.notFirst = true
+	f.notFirst = true
 	return nil
 }
 
-func (c *jsonFormatter) End() error {
-	return writeByte(c.w, closeBracket)
+// Close the jsonFormatter after closing the JSON array.
+func (f *jsonFormatter) Close() error {
+	return f.writeByte(closeBracket)
 }
 
-func writeByte(w io.Writer, b byte) error {
-	n, err := w.Write([]byte{b})
+func (f *jsonFormatter) writeByte(b byte) error {
+	n, err := f.w.Write([]byte{b})
 	if err != nil {
 		return err
 	} else if n != 1 {
@@ -141,25 +185,79 @@ func writeByte(w io.Writer, b byte) error {
 	return nil
 }
 
-func parse(b []byte, t string) (interface{}, error) {
+type parser struct {
+	boolRegex    *regexp.Regexp
+	intRegex     *regexp.Regexp
+	decimalRegex *regexp.Regexp
+}
+
+func newParser() (*parser, error) {
+	var (
+		boolRegex, boolErr       = regexp.Compile("BOOL*")
+		intRegex, intErr         = regexp.Compile("INT*")
+		decimalRegex, decimalErr = regexp.Compile("DECIMAL*|FLOAT*|NUMERIC*")
+	)
+
+	if boolErr != nil || intErr != nil || decimalErr != nil {
+		return nil, ErrParserRegex
+	}
+
+	p := parser{
+		boolRegex:    boolRegex,
+		intRegex:     intRegex,
+		decimalRegex: decimalRegex,
+	}
+
+	return &p, nil
+}
+
+func (p *parser) parse(b []byte, t string) (interface{}, error) {
 	if b == nil {
 		return nil, nil
 	}
 
 	var (
-		s            = string(b)
-		boolRegex    = regexp.MustCompile("BOOL*")
-		intRegex     = regexp.MustCompile("INT*")
-		decimalRegex = regexp.MustCompile("DECIMAL*|FLOAT*|NUMERIC*")
+		s = string(b)
 	)
 	switch {
-	case boolRegex.MatchString(t):
+	case p.boolRegex.MatchString(t):
 		return strconv.ParseBool(s)
-	case intRegex.MatchString(t):
+	case p.intRegex.MatchString(t):
 		return strconv.Atoi(s)
-	case decimalRegex.MatchString(t):
+	case p.decimalRegex.MatchString(t):
 		return strconv.ParseFloat(s, 64)
 	default:
 		return s, nil
 	}
+}
+
+func buildMap(record [][]byte, columns []*sql.ColumnType, p *parser) (map[string]interface{}, error) {
+	m := make(map[string]interface{})
+	for i, column := range columns {
+		r, err := p.parse(record[i], columns[i].DatabaseTypeName())
+		if err != nil {
+			return nil, err
+		}
+		m[column.Name()] = r
+	}
+
+	return m, nil
+}
+
+type marshalFunc func(interface{}) ([]byte, error)
+
+func write(v interface{}, w io.Writer, marshal marshalFunc) error {
+	b, err := marshal(v)
+	if err != nil {
+		return err
+	}
+
+	n, err := w.Write(b)
+	if err != nil {
+		return err
+	} else if n != len(b) {
+		return io.ErrShortWrite
+	}
+
+	return nil
 }
