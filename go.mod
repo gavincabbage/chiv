@@ -8,4 +8,5 @@ require (
 	github.com/lib/pq v1.0.0
 	github.com/stretchr/testify v1.3.0
 	golang.org/x/net v0.0.0-20190313220215-9f648a60d977 // indirect
+	gopkg.in/yaml.v2 v2.2.2
 )
