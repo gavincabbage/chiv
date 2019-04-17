@@ -7,8 +7,6 @@ test:
     - AWS_REGION=us-east-1
     - AWS_ENDPOINT=http://s3:4572
     - POSTGRES_URL=postgres://postgres:password@postgres/test?sslmode=disable
-    - AWS_ACCESS_KEY_FILE=access_key
-      AWS_SECRET_KEY_FILE=secret_key
   depends_on:
     - postgres
     - s3
