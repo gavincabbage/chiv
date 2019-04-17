@@ -1,5 +1,5 @@
-// Package chiv_test includes integration tests external to package chiv
-// and relies on external services postgres and s3 (localstack) via CodeShip.
+// Package chiv_test includes integration tests and benchmarks external to package chiv
+// It relies on external services postgres and s3 (localstack) via CodeShip.
 package chiv_test
 
 import (
@@ -14,20 +14,13 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
-	_ "github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gavincabbage/chiv"
-)
 
-type call struct {
-	expected string
-	table    string
-	bucket   string
-	key      string
-	options  []chiv.Option
-}
+	_ "github.com/lib/pq"
+)
 
 type test struct {
 	name     string
@@ -39,18 +32,26 @@ type test struct {
 	calls    []call
 }
 
+type call struct {
+	expected string
+	table    string
+	bucket   string
+	key      string
+	options  []chiv.Option
+}
+
 func TestArchiver_Archive(t *testing.T) {
 	cases := []test{
 		{
 			name:     "postgres to csv",
 			driver:   "postgres",
 			database: os.Getenv("POSTGRES_URL"),
-			setup:    "./testdata/postgres_setup.sql",
-			teardown: "./testdata/postgres_teardown.sql",
+			setup:    "./test/data/postgres_setup.sql",
+			teardown: "./test/data/postgres_teardown.sql",
 			options:  []chiv.Option{},
 			calls: []call{
 				{
-					expected: "./testdata/postgres.csv",
+					expected: "./test/data/postgres.csv",
 					bucket:   "postgres_bucket",
 					table:    "postgres_table",
 					key:      "postgres_table",
@@ -62,14 +63,14 @@ func TestArchiver_Archive(t *testing.T) {
 			name:     "postgres to csv key override",
 			driver:   "postgres",
 			database: os.Getenv("POSTGRES_URL"),
-			setup:    "./testdata/postgres_setup.sql",
-			teardown: "./testdata/postgres_teardown.sql",
+			setup:    "./test/data/postgres_setup.sql",
+			teardown: "./test/data/postgres_teardown.sql",
 			options: []chiv.Option{
 				chiv.WithKey("postgres_table.csv"),
 			},
 			calls: []call{
 				{
-					expected: "./testdata/postgres.csv",
+					expected: "./test/data/postgres.csv",
 					bucket:   "postgres_bucket",
 					table:    "postgres_table",
 					key:      "postgres_table.csv",
@@ -81,14 +82,14 @@ func TestArchiver_Archive(t *testing.T) {
 			name:     "postgres to csv null override",
 			driver:   "postgres",
 			database: os.Getenv("POSTGRES_URL"),
-			setup:    "./testdata/postgres_setup.sql",
-			teardown: "./testdata/postgres_teardown.sql",
+			setup:    "./test/data/postgres_setup.sql",
+			teardown: "./test/data/postgres_teardown.sql",
 			options: []chiv.Option{
 				chiv.WithNull("custom_null"),
 			},
 			calls: []call{
 				{
-					expected: "./testdata/postgres_with_null.csv",
+					expected: "./test/data/postgres_with_null.csv",
 					bucket:   "postgres_bucket",
 					table:    "postgres_table",
 					key:      "postgres_table",
@@ -100,15 +101,15 @@ func TestArchiver_Archive(t *testing.T) {
 			name:     "postgres to json",
 			driver:   "postgres",
 			database: os.Getenv("POSTGRES_URL"),
-			setup:    "./testdata/postgres_setup.sql",
-			teardown: "./testdata/postgres_teardown.sql",
+			setup:    "./test/data/postgres_setup.sql",
+			teardown: "./test/data/postgres_teardown.sql",
 			options: []chiv.Option{
 				chiv.WithFormat(chiv.JSON),
 				chiv.WithKey("postgres_table.json"),
 			},
 			calls: []call{
 				{
-					expected: "./testdata/postgres.json",
+					expected: "./test/data/postgres.json",
 					bucket:   "postgres_bucket",
 					table:    "postgres_table",
 					key:      "postgres_table.json",
@@ -120,19 +121,50 @@ func TestArchiver_Archive(t *testing.T) {
 			name:     "postgres to yaml",
 			driver:   "postgres",
 			database: os.Getenv("POSTGRES_URL"),
-			setup:    "./testdata/postgres_setup.sql",
-			teardown: "./testdata/postgres_teardown.sql",
+			setup:    "./test/data/postgres_setup.sql",
+			teardown: "./test/data/postgres_teardown.sql",
 			options: []chiv.Option{
 				chiv.WithFormat(chiv.YAML),
 				chiv.WithKey("postgres_table.yaml"),
 			},
 			calls: []call{
 				{
-					expected: "./testdata/postgres.yaml",
+					expected: "./test/data/postgres.yaml",
 					bucket:   "postgres_bucket",
 					table:    "postgres_table",
 					key:      "postgres_table.yaml",
 					options:  []chiv.Option{},
+				},
+			},
+		},
+		{
+			name:     "postgres two formats",
+			driver:   "postgres",
+			database: os.Getenv("POSTGRES_URL"),
+			setup:    "./test/data/postgres_setup.sql",
+			teardown: "./test/data/postgres_teardown.sql",
+			options: []chiv.Option{
+				chiv.WithFormat(chiv.YAML),
+			},
+			calls: []call{
+				{
+					expected: "./test/data/postgres.json",
+					bucket:   "postgres_bucket",
+					table:    "postgres_table",
+					key:      "postgres_table.json",
+					options: []chiv.Option{
+						chiv.WithFormat(chiv.JSON),
+						chiv.WithKey("postgres_table.json"),
+					},
+				},
+				{
+					expected: "./test/data/postgres.yaml",
+					bucket:   "postgres_bucket",
+					table:    "postgres_table",
+					key:      "postgres_table.yaml",
+					options: []chiv.Option{
+						chiv.WithKey("postgres_table.yaml"),
+					},
 				},
 			},
 		},
@@ -147,8 +179,8 @@ func TestArchiver_Archive(t *testing.T) {
 				downloader = s3manager.NewDownloaderWithClient(s3client)
 			)
 
-			exec(t, db, test.setup)
-			defer exec(t, db, test.teardown)
+			exec(t, db, readFile(t, test.setup))
+			defer exec(t, db, readFile(t, test.teardown))
 
 			subject := chiv.NewArchiver(db, uploader, test.options...)
 			assert.NotNil(t, subject)
@@ -163,25 +195,6 @@ func TestArchiver_Archive(t *testing.T) {
 				require.Equal(t, expected, actual)
 			}
 		})
-	}
-}
-
-func BenchmarkArchiver_Archive(b *testing.B) {
-	var (
-		db       = newDB(b, "postgres", os.Getenv("POSTGRES_URL"))
-		s3client = newS3Client(b, os.Getenv("AWS_REGION"), os.Getenv("AWS_ENDPOINT"))
-		uploader = s3manager.NewUploaderWithClient(s3client)
-	)
-
-	exec(b, db, "./testdata/repeated_setup.sql")
-	defer exec(b, db, "./testdata/repeated_teardown.sql")
-
-	subject := chiv.NewArchiver(db, uploader, chiv.WithKey("repeated.csv"))
-
-	createBucket(b, s3client, "repeated_bucket")
-
-	if err := subject.Archive("repeated_table", "repeated_bucket"); err != nil {
-		b.Error()
 	}
 }
 
@@ -211,10 +224,9 @@ func newS3Client(e errorer, region string, endpoint string) *s3.S3 {
 	return client
 }
 
-func exec(e errorer, db *sql.DB, path string) {
-	file := readFile(e, path)
-	statements := strings.Split(string(file), ";\n\n")
-	for _, statement := range statements {
+func exec(e errorer, db *sql.DB, statements string) {
+	s := strings.Split(statements, ";\n\n")
+	for _, statement := range s {
 		if _, err := db.Exec(statement); err != nil {
 			e.Error(err)
 		}

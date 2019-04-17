@@ -7,6 +7,8 @@ test:
     - AWS_REGION=us-east-1
     - AWS_ENDPOINT=http://s3:4572
     - POSTGRES_URL=postgres://postgres:password@postgres/test?sslmode=disable
+    - AWS_ACCESS_KEY_FILE=access_key
+      AWS_SECRET_KEY_FILE=secret_key
   depends_on:
     - postgres
     - s3
@@ -16,14 +18,14 @@ lint:
   cached: true
 
 postgres:
-  image: postgres:11.2
+  image: healthcheck/postgres
   environment:
     - POSTGRES_DB=test
     - POSTGRES_PASSWORD=password
   cached: true
 
 s3:
-  image: localstack/localstack:0.9.0
+  image: localstack/localstack:latest
   environment:
     - SERVICES=s3
   cached: true
