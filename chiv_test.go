@@ -3,16 +3,9 @@
 package chiv_test
 
 import (
-	"database/sql"
-	"io/ioutil"
 	"os"
-	"strings"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,6 +21,7 @@ type test struct {
 	database string
 	setup    string
 	teardown string
+	bucket   string
 	options  []chiv.Option
 	calls    []call
 }
@@ -35,7 +29,6 @@ type test struct {
 type call struct {
 	expected string
 	table    string
-	bucket   string
 	key      string
 	options  []chiv.Option
 }
@@ -48,11 +41,11 @@ func TestArchiver_Archive(t *testing.T) {
 			database: os.Getenv("POSTGRES_URL"),
 			setup:    "./test/data/postgres_setup.sql",
 			teardown: "./test/data/postgres_teardown.sql",
+			bucket:   "postgres_bucket",
 			options:  []chiv.Option{},
 			calls: []call{
 				{
 					expected: "./test/data/postgres.csv",
-					bucket:   "postgres_bucket",
 					table:    "postgres_table",
 					key:      "postgres_table",
 					options:  []chiv.Option{},
@@ -65,13 +58,13 @@ func TestArchiver_Archive(t *testing.T) {
 			database: os.Getenv("POSTGRES_URL"),
 			setup:    "./test/data/postgres_setup.sql",
 			teardown: "./test/data/postgres_teardown.sql",
+			bucket:   "postgres_bucket",
 			options: []chiv.Option{
 				chiv.WithKey("postgres_table.csv"),
 			},
 			calls: []call{
 				{
 					expected: "./test/data/postgres.csv",
-					bucket:   "postgres_bucket",
 					table:    "postgres_table",
 					key:      "postgres_table.csv",
 					options:  []chiv.Option{},
@@ -84,13 +77,13 @@ func TestArchiver_Archive(t *testing.T) {
 			database: os.Getenv("POSTGRES_URL"),
 			setup:    "./test/data/postgres_setup.sql",
 			teardown: "./test/data/postgres_teardown.sql",
+			bucket:   "postgres_bucket",
 			options: []chiv.Option{
 				chiv.WithNull("custom_null"),
 			},
 			calls: []call{
 				{
 					expected: "./test/data/postgres_with_null.csv",
-					bucket:   "postgres_bucket",
 					table:    "postgres_table",
 					key:      "postgres_table",
 					options:  []chiv.Option{},
@@ -103,6 +96,7 @@ func TestArchiver_Archive(t *testing.T) {
 			database: os.Getenv("POSTGRES_URL"),
 			setup:    "./test/data/postgres_setup.sql",
 			teardown: "./test/data/postgres_teardown.sql",
+			bucket:   "postgres_bucket",
 			options: []chiv.Option{
 				chiv.WithFormat(chiv.JSON),
 				chiv.WithKey("postgres_table.json"),
@@ -110,7 +104,6 @@ func TestArchiver_Archive(t *testing.T) {
 			calls: []call{
 				{
 					expected: "./test/data/postgres.json",
-					bucket:   "postgres_bucket",
 					table:    "postgres_table",
 					key:      "postgres_table.json",
 					options:  []chiv.Option{},
@@ -123,6 +116,7 @@ func TestArchiver_Archive(t *testing.T) {
 			database: os.Getenv("POSTGRES_URL"),
 			setup:    "./test/data/postgres_setup.sql",
 			teardown: "./test/data/postgres_teardown.sql",
+			bucket:   "postgres_bucket",
 			options: []chiv.Option{
 				chiv.WithFormat(chiv.YAML),
 				chiv.WithKey("postgres_table.yaml"),
@@ -130,7 +124,6 @@ func TestArchiver_Archive(t *testing.T) {
 			calls: []call{
 				{
 					expected: "./test/data/postgres.yaml",
-					bucket:   "postgres_bucket",
 					table:    "postgres_table",
 					key:      "postgres_table.yaml",
 					options:  []chiv.Option{},
@@ -143,13 +136,13 @@ func TestArchiver_Archive(t *testing.T) {
 			database: os.Getenv("POSTGRES_URL"),
 			setup:    "./test/data/postgres_setup.sql",
 			teardown: "./test/data/postgres_teardown.sql",
+			bucket:   "postgres_bucket",
 			options: []chiv.Option{
 				chiv.WithFormat(chiv.YAML),
 			},
 			calls: []call{
 				{
 					expected: "./test/data/postgres.json",
-					bucket:   "postgres_bucket",
 					table:    "postgres_table",
 					key:      "postgres_table.json",
 					options: []chiv.Option{
@@ -159,7 +152,6 @@ func TestArchiver_Archive(t *testing.T) {
 				},
 				{
 					expected: "./test/data/postgres.yaml",
-					bucket:   "postgres_bucket",
 					table:    "postgres_table",
 					key:      "postgres_table.yaml",
 					options: []chiv.Option{
@@ -182,87 +174,19 @@ func TestArchiver_Archive(t *testing.T) {
 			exec(t, db, readFile(t, test.setup))
 			defer exec(t, db, readFile(t, test.teardown))
 
+			createBucket(t, s3client, test.bucket)
+			defer deleteBucket(t, s3client, test.bucket)
+
 			subject := chiv.NewArchiver(db, uploader, test.options...)
 			assert.NotNil(t, subject)
 
 			for _, call := range test.calls {
-				createBucket(t, s3client, call.bucket)
+				require.NoError(t, subject.Archive(call.table, test.bucket, call.options...))
+
 				expected := readFile(t, call.expected)
-
-				require.NoError(t, subject.Archive(call.table, call.bucket, call.options...))
-
-				actual := download(t, downloader, call.bucket, call.key)
+				actual := download(t, downloader, test.bucket, call.key)
 				require.Equal(t, expected, actual)
 			}
 		})
 	}
-}
-
-func newDB(e errorer, driver string, url string) *sql.DB {
-	db, err := sql.Open(driver, url)
-	if err != nil {
-		e.Error(err)
-	}
-
-	return db
-}
-
-func newS3Client(e errorer, region string, endpoint string) *s3.S3 {
-	awsConfig := aws.NewConfig().
-		WithRegion(region).
-		WithDisableSSL(true).
-		WithCredentials(credentials.NewEnvCredentials())
-
-	awsSession, err := session.NewSession(awsConfig)
-	if err != nil {
-		e.Error(err)
-	}
-
-	client := s3.New(awsSession)
-	client.Endpoint = endpoint
-
-	return client
-}
-
-func exec(e errorer, db *sql.DB, statements string) {
-	s := strings.Split(statements, ";\n\n")
-	for _, statement := range s {
-		if _, err := db.Exec(statement); err != nil {
-			e.Error(err)
-		}
-	}
-}
-
-func createBucket(e errorer, client *s3.S3, name string) {
-	if _, err := client.CreateBucket(&s3.CreateBucketInput{
-		Bucket: aws.String(name),
-	}); err != nil {
-		e.Error(err)
-	}
-}
-
-func readFile(e errorer, path string) string {
-	contents, err := ioutil.ReadFile(path)
-	if err != nil {
-		e.Error(err)
-	}
-
-	return string(contents)
-}
-
-func download(e errorer, downloader *s3manager.Downloader, bucket string, key string) string {
-	b := &aws.WriteAtBuffer{}
-	_, err := downloader.Download(b, &s3.GetObjectInput{
-		Bucket: aws.String(bucket),
-		Key:    aws.String(key),
-	})
-	if err != nil {
-		e.Error(err)
-	}
-
-	return string(b.Bytes())
-}
-
-type errorer interface {
-	Error(...interface{})
 }

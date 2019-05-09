@@ -3,8 +3,11 @@
 package chiv_test
 
 import (
+	"fmt"
+	"math/rand"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 
@@ -14,39 +17,58 @@ import (
 )
 
 func BenchmarkArchiver_Archive(b *testing.B) {
+	const (
+		bucket = "benchmark_bucket"
+		table  = "benchmark_table"
+
+		createTable     = "CREATE TABLE IF NOT EXISTS benchmark_table (s_col TEXT, d_col INTEGER, f_col DECIMAL);"
+		insertIntoTable = "INSERT INTO benchmark_table VALUES ('%s', %d, %f);"
+		dropTable       = "DROP TABLE benchmark_table;"
+
+		charset    = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+		textLength = 1000
+	)
+
 	var (
 		db       = newDB(b, "postgres", os.Getenv("POSTGRES_URL"))
 		s3client = newS3Client(b, os.Getenv("AWS_REGION"), os.Getenv("AWS_ENDPOINT"))
 		uploader = s3manager.NewUploaderWithClient(s3client)
+		r        = rand.New(rand.NewSource(time.Now().Unix()))
+
+		benchmarks = []int{1, 10, 100, 1000, 2000, 3000, 5000, 10000}
 	)
 
-	const (
-		createTable = `CREATE TABLE IF NOT EXISTS "benchmark_table" (t TEXT,i INTEGER,f DECIMAL);`
+	for _, count := range benchmarks {
+		exec(b, db, createTable)
+		createBucket(b, s3client, bucket)
 
-		insertIntoTable = `INSERT INTO "benchmark_table" VALUES (%s,
-				2345,
-				
-			);`
-
-		dropTable = `
-			DROP TABLE "benchmark_table";`
-	)
-
-	exec(b, db, createTable)
-	defer exec(b, db, dropTable)
-
-	for i := 0; i < 100; i++ {
-		exec(b, db, insertIntoTable)
-	}
-
-	createBucket(b, s3client, "benchmark_bucket")
-
-	subject := chiv.NewArchiver(db, uploader)
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		if err := subject.Archive("benchmark_table", "benchmark_bucket", chiv.WithKey("benchmark_"+string(i))); err != nil {
-			b.Error(err)
+		for i := 0; i < count; i++ {
+			statement := fmt.Sprintf(insertIntoTable, text(r, charset, textLength), i, 1.0)
+			exec(b, db, statement)
 		}
+
+		subject := chiv.NewArchiver(db, uploader)
+
+		b.Run(fmt.Sprintf("benchmark_%d", count), func(*testing.B) {
+			for j := 0; j < b.N; j++ {
+				key := fmt.Sprintf("benchmark_%d_%d", count, j)
+				if err := subject.Archive(table, bucket, chiv.WithKey(key)); err != nil {
+					b.Error(err)
+				}
+			}
+		})
+
+		exec(b, db, dropTable)
+		deleteBucket(b, s3client, bucket)
 	}
+
+}
+
+func text(r *rand.Rand, charset string, length int) string {
+	b := make([]byte, length)
+	for i := range b {
+		b[i] = charset[r.Intn(len(charset))]
+	}
+
+	return string(b)
 }

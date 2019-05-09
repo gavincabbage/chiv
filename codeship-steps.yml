@@ -1,11 +1,11 @@
-- type: parallel
-  steps:
-    - name: lint
-      service: lint
-      command: golangci-lint run
-    - name: test
-      service: test
-      command: go test -p 1 -covermode=atomic -timeout=30s ./...
-    - name: bench
-      service: test
-      command: go test -run=Benchmark -bench=. -benchmem
+- name: lint
+  service: lint
+  command: golangci-lint run
+
+- name: test
+  service: test
+  command: go test -p 1 -covermode=atomic -timeout=30s ./...
+
+- name: benchmark
+  service: test
+  command: go test -run=Benchmark -bench=. -benchmem

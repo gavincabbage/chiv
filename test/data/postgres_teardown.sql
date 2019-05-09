@@ -1,1 +1,1 @@
-DROP TABLE "postgres_table";
+DROP TABLE postgres_table;
