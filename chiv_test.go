@@ -160,6 +160,23 @@ func TestArchiver_Archive(t *testing.T) {
 				},
 			},
 		},
+		//{
+		//	name:     "mysql to csv",
+		//	driver:   "mysql",
+		//	database: os.Getenv("MYSQL_URL"),
+		//	setup:    "./test/data/mysql_setup.sql",
+		//	teardown: "./test/data/mysql_teardown.sql",
+		//	bucket:   "mysql_bucket",
+		//	options:  []chiv.Option{},
+		//	calls: []call{
+		//		{
+		//			expected: "./test/data/mysql.csv",
+		//			table:    "mysql_table",
+		//			key:      "mysql_table",
+		//			options:  []chiv.Option{},
+		//		},
+		//	},
+		//},
 	}
 
 	for _, test := range cases {

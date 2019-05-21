@@ -13,6 +13,7 @@ import (
 
 	"github.com/gavincabbage/chiv"
 
+	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
 )
 
@@ -30,12 +31,12 @@ func BenchmarkArchiver_Archive(b *testing.B) {
 	)
 
 	var (
+		benchmarks = []int{1, 10, 100, 1000, 3000, 5000, 10000}
+
 		db       = newDB(b, "postgres", os.Getenv("POSTGRES_URL"))
 		s3client = newS3Client(b, os.Getenv("AWS_REGION"), os.Getenv("AWS_ENDPOINT"))
 		uploader = s3manager.NewUploaderWithClient(s3client)
-		r        = rand.New(rand.NewSource(time.Now().Unix()))
-
-		benchmarks = []int{1, 10, 100, 1000, 2000, 3000, 5000, 10000}
+		random   = rand.New(rand.NewSource(time.Now().Unix()))
 	)
 
 	for _, count := range benchmarks {
@@ -43,7 +44,7 @@ func BenchmarkArchiver_Archive(b *testing.B) {
 		createBucket(b, s3client, bucket)
 
 		for i := 0; i < count; i++ {
-			statement := fmt.Sprintf(insertIntoTable, text(r, charset, textLength), i, 1.0)
+			statement := fmt.Sprintf(insertIntoTable, text(random, charset, textLength), i, 42.42)
 			exec(b, db, statement)
 		}
 
