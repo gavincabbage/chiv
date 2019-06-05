@@ -51,7 +51,6 @@ func exec(f fataler, db *sql.DB, statements string) {
 	s := strings.Split(statements, ";\n\n")
 	for _, statement := range s {
 		if _, err := db.Exec(statement); err != nil {
-			fmt.Println(statement)
 			f.Fatal(err)
 		}
 	}
@@ -106,6 +105,7 @@ func download(f fataler, downloader *s3manager.Downloader, bucket string, key st
 		Key:    aws.String(key),
 	})
 	if err != nil {
+		fmt.Println("error:", bucket, key)
 		f.Fatal(err)
 	}
 

@@ -3,6 +3,7 @@
 package chiv_test
 
 import (
+	"context"
 	"os"
 	"testing"
 
@@ -35,6 +36,23 @@ type call struct {
 
 func TestArchiver_Archive(t *testing.T) {
 	cases := []test{
+		{
+			name:     "happy path csv",
+			driver:   "postgres",
+			database: os.Getenv("POSTGRES_URL"),
+			setup:    "./test/data/database_setup.sql",
+			teardown: "./test/data/database_teardown.sql",
+			bucket:   "database_bucket",
+			options:  []chiv.Option{},
+			calls: []call{
+				{
+					expected: "./test/data/database.csv",
+					table:    "database_table",
+					key:      "database_table",
+					options:  []chiv.Option{},
+				},
+			},
+		},
 		{
 			name:     "postgres to csv",
 			driver:   "postgres",
@@ -160,23 +178,78 @@ func TestArchiver_Archive(t *testing.T) {
 				},
 			},
 		},
-		//{
-		//	name:     "mysql to csv",
-		//	driver:   "mysql",
-		//	database: os.Getenv("MYSQL_URL"),
-		//	setup:    "./test/data/mysql_setup.sql",
-		//	teardown: "./test/data/mysql_teardown.sql",
-		//	bucket:   "mysql_bucket",
-		//	options:  []chiv.Option{},
-		//	calls: []call{
-		//		{
-		//			expected: "./test/data/mysql.csv",
-		//			table:    "mysql_table",
-		//			key:      "mysql_table",
-		//			options:  []chiv.Option{},
-		//		},
-		//	},
-		//},
+		{
+			name:     "postgres one-off extension",
+			driver:   "postgres",
+			database: os.Getenv("POSTGRES_URL"),
+			setup:    "./test/data/postgres_setup.sql",
+			teardown: "./test/data/postgres_teardown.sql",
+			bucket:   "postgres_bucket",
+			options: []chiv.Option{
+				chiv.WithFormat(chiv.YAML),
+			},
+			calls: []call{
+				{
+					expected: "./test/data/postgres.yaml",
+					table:    "postgres_table",
+					key:      "postgres_table.not_yaml",
+					options: []chiv.Option{
+						chiv.WithExtension("not_yaml"),
+					},
+				},
+				{
+					expected: "./test/data/postgres.yaml",
+					table:    "postgres_table",
+					key:      "postgres_table",
+					options:  []chiv.Option{},
+				},
+			},
+		},
+		{
+			name:     "postgres two tables",
+			driver:   "postgres",
+			database: os.Getenv("POSTGRES_URL"),
+			setup:    "./test/data/two_tables_setup.sql",
+			teardown: "./test/data/two_tables_teardown.sql",
+			bucket:   "postgres_bucket",
+			options: []chiv.Option{
+				chiv.WithFormat(chiv.CSV),
+				chiv.WithExtension("csv"),
+			},
+			calls: []call{
+				{
+					expected: "./test/data/two_tables_first.csv",
+					table:    "first_table",
+					key:      "first_table.csv",
+					options:  []chiv.Option{},
+				},
+				{
+					expected: "./test/data/two_tables_second.csv",
+					table:    "second_table",
+					key:      "second_table.csv",
+					options:  []chiv.Option{},
+				},
+			},
+		},
+		{
+			name:     "with columns",
+			driver:   "postgres",
+			database: os.Getenv("POSTGRES_URL"),
+			setup:    "./test/data/postgres_setup.sql",
+			teardown: "./test/data/postgres_teardown.sql",
+			bucket:   "postgres_bucket",
+			options:  []chiv.Option{},
+			calls: []call{
+				{
+					expected: "./test/data/postgres_subset.csv",
+					table:    "postgres_table",
+					key:      "postgres_table",
+					options: []chiv.Option{
+						chiv.WithColumns("id", "text_column", "int_column"),
+					},
+				},
+			},
+		},
 	}
 
 	for _, test := range cases {
@@ -206,4 +279,31 @@ func TestArchiver_Archive(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestArchiveWithContext(t *testing.T) {
+	var (
+		database   = os.Getenv("POSTGRES_URL")
+		driver     = "postgres"
+		bucket     = "postgres_bucket"
+		table      = "postgres_table"
+		setup      = "./test/data/postgres_setup.sql"
+		teardown   = "./test/data/postgres_teardown.sql"
+		expected   = "./test/data/postgres.csv"
+		db         = newDB(t, driver, database)
+		s3client   = newS3Client(t, os.Getenv("AWS_REGION"), os.Getenv("AWS_ENDPOINT"))
+		uploader   = s3manager.NewUploaderWithClient(s3client)
+		downloader = s3manager.NewDownloaderWithClient(s3client)
+	)
+
+	exec(t, db, readFile(t, setup))
+	defer exec(t, db, readFile(t, teardown))
+
+	createBucket(t, s3client, bucket)
+	defer deleteBucket(t, s3client, bucket)
+
+	require.NoError(t, chiv.ArchiveWithContext(context.Background(), db, uploader, table, bucket))
+
+	actual := download(t, downloader, bucket, table)
+	require.Equal(t, readFile(t, expected), actual)
 }

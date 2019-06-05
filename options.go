@@ -30,3 +30,10 @@ func WithNull(s string) Option {
 		a.null = []byte(s)
 	}
 }
+
+// WithColumns configures a list of column names to archive.
+func WithColumns(c ...string) Option {
+	return func(a *Archiver) {
+		a.columns = c
+	}
+}

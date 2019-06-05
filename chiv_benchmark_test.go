@@ -31,7 +31,7 @@ func BenchmarkArchiver_Archive(b *testing.B) {
 	)
 
 	var (
-		benchmarks = []int{1, 10, 100, 1000, 3000, 5000, 10000}
+		benchmarks = []int{1, 10, 100, 1000, 3000}
 
 		db       = newDB(b, "postgres", os.Getenv("POSTGRES_URL"))
 		s3client = newS3Client(b, os.Getenv("AWS_REGION"), os.Getenv("AWS_ENDPOINT"))
@@ -48,12 +48,10 @@ func BenchmarkArchiver_Archive(b *testing.B) {
 			exec(b, db, statement)
 		}
 
-		subject := chiv.NewArchiver(db, uploader)
-
 		b.Run(fmt.Sprintf("benchmark_%d", count), func(*testing.B) {
 			for j := 0; j < b.N; j++ {
 				key := fmt.Sprintf("benchmark_%d_%d", count, j)
-				if err := subject.Archive(table, bucket, chiv.WithKey(key)); err != nil {
+				if err := chiv.Archive(db, uploader, table, bucket, chiv.WithKey(key)); err != nil {
 					b.Error(err)
 				}
 			}

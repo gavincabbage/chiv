@@ -1,4 +1,4 @@
-// Package chiv archives arbitrarily large relational database tables to Amazon S3.
+// Package chiv archives relational database tables to Amazon S3.
 package chiv
 
 import (
@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
@@ -19,7 +20,19 @@ var (
 	ErrRecordLength = errors.New("record length does not match number of columns")
 	// ErrParserRegex initialization problem.
 	ErrParserRegex = errors.New("initializing parser regex")
+	// ErrBuildingQuery string.
+	ErrBuildingQuery = errors.New("building query")
 )
+
+// Archive a database table to S3.
+func Archive(db *sql.DB, s3 *s3manager.Uploader, table, bucket string, options ...Option) error {
+	return NewArchiver(db, s3).ArchiveWithContext(context.Background(), table, bucket, options...)
+}
+
+// ArchiveWithContext is like Archive, with context.
+func ArchiveWithContext(ctx context.Context, db *sql.DB, s3 *s3manager.Uploader, table, bucket string, options ...Option) error {
+	return NewArchiver(db, s3).ArchiveWithContext(ctx, table, bucket, options...)
+}
 
 // Archiver archives arbitrarily large relational database tables to Amazon S3.
 type Archiver struct {
@@ -29,6 +42,7 @@ type Archiver struct {
 	key       string
 	extension string
 	null      []byte
+	columns   []string
 }
 
 // NewArchiver constructs an archiver with the given database, S3 uploader and options.
@@ -47,7 +61,7 @@ func NewArchiver(db *sql.DB, s3 *s3manager.Uploader, options ...Option) *Archive
 	return &a
 }
 
-// Archive a database table to S3.
+// Archive a database table to S3. Any options provided override those set on creation.
 func (a *Archiver) Archive(table, bucket string, options ...Option) error {
 	return a.ArchiveWithContext(context.Background(), table, bucket, options...)
 }
@@ -80,8 +94,7 @@ func (a *Archiver) archive(ctx context.Context, table string, bucket string) err
 }
 
 func (a *Archiver) download(ctx context.Context, wc io.WriteCloser, table string, errs chan error) {
-	selectAll := fmt.Sprintf(`select * from "%s";`, table)
-	rows, err := a.db.QueryContext(ctx, selectAll)
+	rows, err := a.query(ctx, table)
 	if err != nil {
 		errs <- err
 		return
@@ -144,6 +157,24 @@ func (a *Archiver) download(ctx context.Context, wc io.WriteCloser, table string
 		errs <- err
 		return
 	}
+}
+
+func (a *Archiver) query(ctx context.Context, table string) (*sql.Rows, error) {
+	var b strings.Builder
+	for i, column := range a.columns {
+		b.WriteString(column)
+		if i < len(a.columns)-1 {
+			b.WriteString(", ")
+		}
+	}
+
+	columns := "*"
+	if b.Len() > 0 {
+		columns = b.String()
+	}
+
+	query := fmt.Sprintf(`select %s from "%s";`, columns, table)
+	return a.db.QueryContext(ctx, query)
 }
 
 func (a *Archiver) upload(ctx context.Context, r io.Reader, table string, bucket string, errs chan error) {

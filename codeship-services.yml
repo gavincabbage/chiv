@@ -1,5 +1,7 @@
 test:
-  build: .
+  build:
+    context: .
+    dockerfile: ./test/Dockerfile
   cached: true
   environment:
     - AWS_ACCESS_KEY_ID=bogus
@@ -12,8 +14,11 @@ test:
     - s3
 
 lint:
-  build: .
+  build:
+    context: .
+    dockerfile: ./test/Dockerfile
   cached: true
+  command: golangci-lint run
 
 postgres:
   image: healthcheck/postgres

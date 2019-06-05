@@ -4,11 +4,14 @@ CREATE TABLE IF NOT EXISTS first_table (
 );
 
 INSERT INTO first_table VALUES (
-    'some text',
-    12
+   'some second text',
+   22
 ),(
-    'lorem ipsum',
-    13
+   'lorem second ipsum',
+   23
+),(
+   'final row',
+   24
 );
 
 CREATE TABLE IF NOT EXISTS second_table (
@@ -16,13 +19,12 @@ CREATE TABLE IF NOT EXISTS second_table (
     integer_column INTEGER
 );
 
+
+
 INSERT INTO second_table VALUES (
-    'some second text',
-    22
+    'some text',
+    12
 ),(
-    'lorem second ipsum',
-    23
-),(
-    'final row',
-    24
+    'lorem ipsum',
+    13
 );
