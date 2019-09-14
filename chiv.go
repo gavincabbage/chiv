@@ -34,7 +34,7 @@ func ArchiveWithContext(ctx context.Context, db *sql.DB, s3 *s3manager.Uploader,
 	return NewArchiver(db, s3).ArchiveWithContext(ctx, table, bucket, options...)
 }
 
-// Archiver archives arbitrarily large relational database tables to Amazon S3.
+// Archiver archives database tables to Amazon S3.
 type Archiver struct {
 	db        *sql.DB
 	s3        *s3manager.Uploader
