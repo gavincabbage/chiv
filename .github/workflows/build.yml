@@ -47,7 +47,7 @@ jobs:
       s3:
         image: localstack/localstack:latest
         env:
-          SERVICES=s3
+          - SERVICES=s3
       postgres:
         image: healthcheck/postgres
         env:
