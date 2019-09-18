@@ -1,4 +1,4 @@
-ARG GO_VERSION=1.12
+ARG GO_VERSION=1.13
 
 FROM golang:${GO_VERSION}-alpine
 
@@ -11,6 +11,5 @@ COPY go.mod .
 COPY go.sum .
 
 RUN go mod download
-RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint
 
 COPY . .

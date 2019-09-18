@@ -1,15 +1,15 @@
-module github.com/gavincabbage/chiv
+module gavincabbage.com/chiv
 
-go 1.12
+go 1.13
 
 require (
-	github.com/Masterminds/squirrel v1.1.0
 	github.com/aws/aws-sdk-go v1.19.6
 	github.com/go-sql-driver/mysql v1.4.1
-	github.com/golangci/golangci-lint v1.16.0
+	github.com/golangci/golangci-lint v1.18.0
 	github.com/lib/pq v1.0.0
-	github.com/mattn/go-sqlite3 v1.10.0 // indirect
 	github.com/stretchr/testify v1.3.0
-	google.golang.org/appengine v1.5.0 // indirect
+	golang.org/x/sync v0.0.0-20190423024810-112230192c58
 	gopkg.in/yaml.v2 v2.2.2
 )
+
+replace sourcegraph.com/sourcegraph/go-diff => github.com/sourcegraph/go-diff v0.5.1

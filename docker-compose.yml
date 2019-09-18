@@ -1,0 +1,36 @@
+version: '3'
+
+services:
+
+  test:
+    build: .
+    command: go test -p 1 -tags=integration -covermode=atomic -timeout=60s ./...
+    environment:
+      - AWS_ACCESS_KEY_ID=bogus
+      - AWS_SECRET_KEY=bogus
+      - AWS_REGION=us-east-1
+      - AWS_ENDPOINT=http://s3:4572
+      - POSTGRES_URL=postgres://postgres:password@postgres/testdb?sslmode=disable
+      - MARIADB_URL=root:password@tcp(mariadb:3306)/testdb?charset=utf8&parseTime=True&loc=Local
+    depends_on:
+      - postgres
+      - mariadb
+      - s3
+
+  s3:
+    image: localstack/localstack:latest
+    environment:
+      - SERVICES=s3
+
+  postgres:
+    image: healthcheck/postgres
+    environment:
+      - POSTGRES_DB=testdb
+      - POSTGRES_PASSWORD=password
+
+  mariadb:
+    image: healthcheck/mariadb
+    environment:
+      - MYSQL_DATABASE=testdb
+      - MYSQL_ROOT_PASSWORD=password
+

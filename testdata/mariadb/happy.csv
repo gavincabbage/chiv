@@ -1,0 +1,4 @@
+id,text_column,char_column,int_column,float_column,bool_column,ts_column
+1,some text,some chars,42,3.14,1,2018-01-04T00:00:00Z
+2,some other text,,100,3.141592,1,2018-02-04T00:00:00Z
+3,some more text,some more chars,101,,0,2018-02-05T00:00:00Z

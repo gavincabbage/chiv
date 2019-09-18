@@ -4,40 +4,29 @@ package chiv
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"io"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
-)
-
-var (
-	// DefaultFormat is CSV.
-	DefaultFormat = CSV
-	// ErrRecordLength does not match the number of columns.
-	ErrRecordLength = errors.New("record length does not match number of columns")
-	// ErrParserRegex initialization problem.
-	ErrParserRegex = errors.New("initializing parser regex")
-	// ErrBuildingQuery string.
-	ErrBuildingQuery = errors.New("building query")
+	"golang.org/x/sync/errgroup"
 )
 
 // Archive a database table to S3.
-func Archive(db *sql.DB, s3 *s3manager.Uploader, table, bucket string, options ...Option) error {
-	return NewArchiver(db, s3).ArchiveWithContext(context.Background(), table, bucket, options...)
+func Archive(db database, s3 uploader, table, bucket string, options ...Option) error {
+	return ArchiveWithContext(context.Background(), db, s3, table, bucket, options...)
 }
 
 // ArchiveWithContext is like Archive, with context.
-func ArchiveWithContext(ctx context.Context, db *sql.DB, s3 *s3manager.Uploader, table, bucket string, options ...Option) error {
+func ArchiveWithContext(ctx context.Context, db database, s3 uploader, table, bucket string, options ...Option) error {
 	return NewArchiver(db, s3).ArchiveWithContext(ctx, table, bucket, options...)
 }
 
 // Archiver archives database tables to Amazon S3.
 type Archiver struct {
-	db        *sql.DB
-	s3        *s3manager.Uploader
+	db        database
+	s3        uploader
 	format    FormatterFunc
 	key       string
 	extension string
@@ -47,11 +36,11 @@ type Archiver struct {
 
 // NewArchiver constructs an archiver with the given database, S3 uploader and options.
 // Options set on creation apply to all calls to Archive unless overridden.
-func NewArchiver(db *sql.DB, s3 *s3manager.Uploader, options ...Option) *Archiver {
+func NewArchiver(db database, s3 uploader, options ...Option) *Archiver {
 	a := Archiver{
 		db:     db,
 		s3:     s3,
-		format: DefaultFormat,
+		format: CSV,
 	}
 
 	for _, option := range options {
@@ -76,41 +65,62 @@ func (a *Archiver) ArchiveWithContext(ctx context.Context, table, bucket string,
 	return b.archive(ctx, table, bucket)
 }
 
-func (a *Archiver) archive(ctx context.Context, table string, bucket string) error {
-	errs := make(chan error)
-	r, w := io.Pipe()
-	defer r.Close()
-	defer w.Close()
-
-	go a.download(ctx, w, table, errs)
-	go a.upload(ctx, r, table, bucket, errs)
-
-	select {
-	case err := <-errs:
-		return err
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+type database interface {
+	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
 }
 
-func (a *Archiver) download(ctx context.Context, wc io.WriteCloser, table string, errs chan error) {
+type rows interface {
+	Close() error
+	ColumnTypes() ([]*sql.ColumnType, error)
+	Next() bool
+	Scan(...interface{}) error
+	Err() error
+}
+
+type uploader interface {
+	UploadWithContext(ctx aws.Context, input *s3manager.UploadInput, opts ...func(*s3manager.Uploader)) (*s3manager.UploadOutput, error)
+}
+
+func (a *Archiver) archive(parent context.Context, table string, bucket string) (err error) {
+	var (
+		r, w   = io.Pipe()
+		g, ctx = errgroup.WithContext(parent)
+	)
+	g.Go(func() error {
+		return a.download(ctx, w, table)
+	})
+	g.Go(func() error {
+		return a.upload(ctx, r, table, bucket)
+	})
+
+	return g.Wait()
+}
+
+func (a *Archiver) download(ctx context.Context, w io.WriteCloser, table string) (err error) {
+	defer func() {
+		if e := w.Close(); e != nil && err == nil {
+			err = e
+		}
+	}()
+
 	rows, err := a.query(ctx, table)
 	if err != nil {
-		errs <- err
-		return
+		return err
 	}
-	defer rows.Close()
+	defer func() {
+		if e := rows.Close(); e != nil && err == nil {
+			err = e
+		}
+	}()
 
 	columns, err := rows.ColumnTypes()
 	if err != nil {
-		errs <- err
-		return
+		return err
 	}
 
-	f, err := a.format(wc, columns)
+	f, err := a.format(w, columns)
 	if err != nil {
-		errs <- err
-		return
+		return err
 	}
 
 	var (
@@ -123,61 +133,64 @@ func (a *Archiver) download(ctx context.Context, wc io.WriteCloser, table string
 	}
 
 	for rows.Next() {
-		err = rows.Scan(scanned...)
-		if err != nil {
-			errs <- err
-			return
-		}
-
-		for i, raw := range rawBytes {
-			if raw == nil && a.null != nil {
-				record[i] = a.null
-			} else {
-				record[i] = raw
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			err = rows.Scan(scanned...)
+			if err != nil {
+				return err
 			}
-		}
 
-		if err := f.Format(record); err != nil {
-			errs <- err
-			return
+			for i, raw := range rawBytes {
+				if raw == nil && a.null != nil {
+					record[i] = a.null
+				} else {
+					record[i] = raw
+				}
+			}
+
+			if err := f.Format(record); err != nil {
+				return err
+			}
 		}
 	}
 
 	if err := rows.Err(); err != nil {
-		errs <- err
-		return
+		return err
 	}
 
 	if err := f.Close(); err != nil {
-		errs <- err
-		return
+		return err
 	}
 
-	if err := wc.Close(); err != nil {
-		errs <- err
-		return
-	}
+	return nil
 }
 
 func (a *Archiver) query(ctx context.Context, table string) (*sql.Rows, error) {
-	var b strings.Builder
-	for i, column := range a.columns {
-		b.WriteString(column)
-		if i < len(a.columns)-1 {
-			b.WriteString(", ")
-		}
-	}
-
 	columns := "*"
-	if b.Len() > 0 {
+	if len(a.columns) > 0 {
+		var b strings.Builder
+		for i, column := range a.columns {
+			b.WriteString(column)
+			if i < len(a.columns)-1 {
+				b.WriteString(", ")
+			}
+		}
 		columns = b.String()
 	}
 
-	query := fmt.Sprintf(`select %s from "%s";`, columns, table)
+	query := fmt.Sprintf(`select %s from %s;`, columns, table)
 	return a.db.QueryContext(ctx, query)
 }
 
-func (a *Archiver) upload(ctx context.Context, r io.Reader, table string, bucket string, errs chan error) {
+func (a *Archiver) upload(ctx context.Context, r io.ReadCloser, table string, bucket string) (err error) {
+	defer func() {
+		if e := r.Close(); e != nil && err == nil {
+			err = e
+		}
+	}()
+
 	if a.key == "" {
 		if a.extension != "" {
 			a.key = fmt.Sprintf("%s.%s", table, a.extension)
@@ -186,13 +199,11 @@ func (a *Archiver) upload(ctx context.Context, r io.Reader, table string, bucket
 		}
 	}
 
-	if _, err := a.s3.UploadWithContext(ctx, &s3manager.UploadInput{
+	_, err = a.s3.UploadWithContext(ctx, &s3manager.UploadInput{
 		Body:   r,
 		Bucket: aws.String(bucket),
 		Key:    aws.String(a.key),
-	}); err != nil {
-		errs <- err
-	}
+	})
 
-	errs <- nil
+	return err
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -23,8 +24,12 @@ func newDB(f fataler, driver string, url string) *sql.DB {
 		f.Fatal(err)
 	}
 
-	if err := db.Ping(); err != nil {
-		f.Fatal(err)
+	for i := 0; i < 15; i++ {
+		if err := db.Ping(); err != nil {
+			time.Sleep(3 * time.Second)
+			continue
+		}
+		break
 	}
 
 	return db

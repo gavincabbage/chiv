@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"regexp"
 	"strconv"
@@ -16,7 +18,9 @@ type FormatterFunc func(io.Writer, []*sql.ColumnType) (Formatter, error)
 
 // Formatter formats and writes records.
 type Formatter interface {
+	// Format and write a single record.
 	Format([][]byte) error
+	// Close the formatter and perform any format-specific cleanup operations.
 	Close() error
 }
 
@@ -25,7 +29,7 @@ type csvFormatter struct {
 	count int
 }
 
-// CSV returns an initialized csvFormatter.
+// CSV writes column headers and returns an initialized CSV formatter.
 func CSV(w io.Writer, columns []*sql.ColumnType) (Formatter, error) {
 	f := &csvFormatter{
 		w:     csv.NewWriter(w),
@@ -38,7 +42,7 @@ func CSV(w io.Writer, columns []*sql.ColumnType) (Formatter, error) {
 	}
 
 	if err := f.w.Write(header); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("writing header: %w", err)
 	}
 
 	return f, nil
@@ -47,7 +51,7 @@ func CSV(w io.Writer, columns []*sql.ColumnType) (Formatter, error) {
 // Format a CSV record.
 func (f *csvFormatter) Format(record [][]byte) error {
 	if f.count != len(record) {
-		return ErrRecordLength
+		return errors.New("record length does not match number of columns")
 	}
 
 	strings := make([]string, f.count)
@@ -61,7 +65,11 @@ func (f *csvFormatter) Format(record [][]byte) error {
 // Close and flush the CSV formatter.
 func (f *csvFormatter) Close() error {
 	f.w.Flush()
-	return f.w.Error()
+	if err := f.w.Error(); err != nil {
+		return fmt.Errorf("closing csv formatter: %w", err)
+	}
+
+	return nil
 }
 
 type yamlFormatter struct {
@@ -70,7 +78,7 @@ type yamlFormatter struct {
 	parser  *parser
 }
 
-// YAML returns an initialized yamlFormatter.
+// YAML returns an initialized YAML formatter.
 func YAML(w io.Writer, columns []*sql.ColumnType) (Formatter, error) {
 	p, err := newParser()
 	if err != nil {
@@ -89,23 +97,23 @@ func YAML(w io.Writer, columns []*sql.ColumnType) (Formatter, error) {
 // Format a YAML record.
 func (f *yamlFormatter) Format(record [][]byte) error {
 	if len(f.columns) != len(record) {
-		return ErrRecordLength
+		return errors.New("record length does not match number of columns")
 	}
 
 	m, err := buildMap(record, f.columns, f.parser)
 	if err != nil {
-		return err
+		return fmt.Errorf("transforming data: %w", err)
 	}
 	l := []map[string]interface{}{m}
 
 	if err := write(l, f.w, yaml.Marshal); err != nil {
-		return err
+		return fmt.Errorf("writing formatted data: %w", err)
 	}
 
 	return nil
 }
 
-// Close the yamlFormatter.
+// Close the YAML formatter.
 func (f *yamlFormatter) Close() error {
 	return nil
 }
@@ -123,7 +131,7 @@ type jsonFormatter struct {
 	parser   *parser
 }
 
-// JSON returns an initialized jsonFormatter with an open JSON array.
+// JSON opens a JSON array and returns an initialized JSON formatter.
 func JSON(w io.Writer, columns []*sql.ColumnType) (Formatter, error) {
 	p, err := newParser()
 	if err != nil {
@@ -137,7 +145,7 @@ func JSON(w io.Writer, columns []*sql.ColumnType) (Formatter, error) {
 	}
 
 	if err := f.writeByte(openBracket); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("writing json: %w", err)
 	}
 
 	return &f, nil
@@ -146,23 +154,23 @@ func JSON(w io.Writer, columns []*sql.ColumnType) (Formatter, error) {
 // Format a JSON record.
 func (f *jsonFormatter) Format(record [][]byte) error {
 	if len(f.columns) != len(record) {
-		return ErrRecordLength
+		return errors.New("record length does not match number of columns")
 	}
 
 	m, err := buildMap(record, f.columns, f.parser)
 	if err != nil {
-		return err
+		return fmt.Errorf("transforming data: %w", err)
 	}
 
 	if f.notFirst {
 		err := f.writeByte(comma)
 		if err != nil {
-			return err
+			return fmt.Errorf("writing json: %w", err)
 		}
 	}
 
 	if err := write(m, f.w, json.Marshal); err != nil {
-		return err
+		return fmt.Errorf("writing formatted data: %w", err)
 	}
 
 	f.notFirst = true
@@ -171,15 +179,17 @@ func (f *jsonFormatter) Format(record [][]byte) error {
 
 // Close the jsonFormatter after closing the JSON array.
 func (f *jsonFormatter) Close() error {
-	return f.writeByte(closeBracket)
+	if err := f.writeByte(closeBracket); err != nil {
+		return fmt.Errorf("closing json formatter: %w", err)
+	}
+
+	return nil
 }
 
 func (f *jsonFormatter) writeByte(b byte) error {
-	n, err := f.w.Write([]byte{b})
+	_, err := f.w.Write([]byte{b})
 	if err != nil {
 		return err
-	} else if n != 1 {
-		return io.ErrShortWrite
 	}
 
 	return nil
@@ -195,11 +205,10 @@ func newParser() (*parser, error) {
 	var (
 		boolRegex, boolErr       = regexp.Compile("BOOL*")
 		intRegex, intErr         = regexp.Compile("INT*")
-		decimalRegex, decimalErr = regexp.Compile("DECIMAL*|FLOAT*|NUMERIC*")
+		decimalRegex, decimalErr = regexp.Compile("DECIMAL*|FLOAT*|NUMERIC*|DOUBLE*")
 	)
-
 	if boolErr != nil || intErr != nil || decimalErr != nil {
-		return nil, ErrParserRegex
+		return nil, errors.New("initializing parser regex")
 	}
 
 	p := parser{
@@ -244,19 +253,16 @@ func buildMap(record [][]byte, columns []*sql.ColumnType, p *parser) (map[string
 	return m, nil
 }
 
-type marshalFunc func(interface{}) ([]byte, error)
+type marshaller func(interface{}) ([]byte, error)
 
-func write(v interface{}, w io.Writer, marshal marshalFunc) error {
-	b, err := marshal(v)
+func write(v interface{}, w io.Writer, m marshaller) error {
+	b, err := m(v)
 	if err != nil {
 		return err
 	}
 
-	n, err := w.Write(b)
-	if err != nil {
+	if _, err := w.Write(b); err != nil {
 		return err
-	} else if n != len(b) {
-		return io.ErrShortWrite
 	}
 
 	return nil
