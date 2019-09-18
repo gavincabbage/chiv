@@ -5,11 +5,14 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-18.04
+    strategy:
+      matrix:
+        go-version: [1.13]
     steps:
       - uses: actions/checkout@v1
       - uses: actions/setup-go@v1
         with:
-          go-version: 1.13
+          go-version: ${{ matrix.go-version }}
       - name: Install linter
         run: curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh| sh -s v1.18.0
       - name: Run linter
@@ -26,6 +29,8 @@ jobs:
       - uses: actions/setup-go@v1
         with:
           go-version: ${{ matrix.go-version }}
+      - name: Install dependencies
+        run: go mod download
       - name: Run unit tests
         run: go test -v -p 1 -tags=unit -covermode=atomic -timeout=60s ./...
 
@@ -47,8 +52,16 @@ jobs:
         env:
           MYSQL_DATABASE: testdb
           MYSQL_ROOT_PASSWORD: password
+    strategy:
+      matrix:
+        go-version: [1.13]
     steps:
       - uses: actions/checkout@v1
+      - uses: actions/setup-go@v1
+        with:
+          go-version: ${{ matrix.go-version }}
+      - name: Install dependencies
+        run: go mod download
       - name: Run integration tests
         run: go test -p 1 -tags=integration -covermode=atomic -timeout=60s ./...
         env:
@@ -72,11 +85,16 @@ jobs:
         env:
           POSTGRES_DB: testdb
           POSTGRES_PASSWORD: password
+    strategy:
+      matrix:
+        go-version: [1.13]
     steps:
       - uses: actions/checkout@v1
       - uses: actions/setup-go@v1
         with:
-          go-version: 1.13
+          go-version: ${{ matrix.go-version }}
+      - name: Install dependencies
+        run: go mod download
       - name: Benchmark
         run: go test -run=Benchmark -benchmem -bench=.
 
