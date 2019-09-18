@@ -5,6 +5,7 @@
 package chiv_test
 
 import (
+	"context"
 	"os"
 	"testing"
 
@@ -340,30 +341,29 @@ func TestArchiver_Archive(t *testing.T) {
 	}
 }
 
-//func TestArchiveWithContext(t *testing.T) {
-//	var (
-//		database   = os.Getenv("POSTGRES_URL")
-//		driver     = "postgres"
-//		bucket     = "postgres_bucket"
-//		table      = "postgres_table"
-//		setup      = "./testdata/postgres/postgres_setup.sql"
-//		teardown   = "./testdata/postgres/postgres_teardown.sql"
-//		expected   = "./testdata/postgres/postgres.csv"
-//		db         = newDB(t, driver, database)
-//		s3client   = newS3Client(t, os.Getenv("AWS_REGION"), os.Getenv("AWS_ENDPOINT"))
-//		uploader   = s3manager.NewUploaderWithClient(s3client)
-//		downloader = s3manager.NewDownloaderWithClient(s3client)
-//	)
-//
-//	exec(t, db, readFile(t, setup))
-//	defer exec(t, db, readFile(t, teardown))
-//
-//	createBucket(t, s3client, bucket)
-//	defer deleteBucket(t, s3client, bucket)
-//
-//	var ()
-//	require.NoError(t, chiv.ArchiveWithContext(context.Background(), db, uploader, table, bucket))
-//
-//	actual := download(t, downloader, bucket, table)
-//	require.Equal(t, readFile(t, expected), actual)
-//}
+func TestArchiveWithContext(t *testing.T) {
+	var (
+		database   = os.Getenv("POSTGRES_URL")
+		driver     = "postgres"
+		bucket     = "postgres_bucket"
+		table      = "postgres_table"
+		setup      = "./testdata/postgres/postgres_setup.sql"
+		teardown   = "./testdata/postgres/postgres_teardown.sql"
+		expected   = "./testdata/postgres/postgres.csv"
+		db         = newDB(t, driver, database)
+		s3client   = newS3Client(t, os.Getenv("AWS_REGION"), os.Getenv("AWS_ENDPOINT"))
+		uploader   = s3manager.NewUploaderWithClient(s3client)
+		downloader = s3manager.NewDownloaderWithClient(s3client)
+	)
+
+	exec(t, db, readFile(t, setup))
+	defer exec(t, db, readFile(t, teardown))
+
+	createBucket(t, s3client, bucket)
+	defer deleteBucket(t, s3client, bucket)
+
+	require.NoError(t, chiv.ArchiveWithContext(context.Background(), db, uploader, table, bucket))
+
+	actual := download(t, downloader, bucket, table)
+	require.Equal(t, readFile(t, expected), actual)
+}

@@ -69,14 +69,6 @@ type database interface {
 	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
 }
 
-type rows interface {
-	Close() error
-	ColumnTypes() ([]*sql.ColumnType, error)
-	Next() bool
-	Scan(...interface{}) error
-	Err() error
-}
-
 type uploader interface {
 	UploadWithContext(ctx aws.Context, input *s3manager.UploadInput, opts ...func(*s3manager.Uploader)) (*s3manager.UploadOutput, error)
 }

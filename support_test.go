@@ -94,6 +94,7 @@ func deleteBucket(f fataler, client *s3.S3, name string) {
 	}
 }
 
+//nolint deadcode false positive
 func readFile(f fataler, path string) string {
 	contents, err := ioutil.ReadFile(path)
 	if err != nil {
@@ -103,6 +104,7 @@ func readFile(f fataler, path string) string {
 	return string(contents)
 }
 
+//nolint deadcode false positive
 func download(f fataler, downloader *s3manager.Downloader, bucket string, key string) string {
 	b := &aws.WriteAtBuffer{}
 	_, err := downloader.Download(b, &s3.GetObjectInput{
