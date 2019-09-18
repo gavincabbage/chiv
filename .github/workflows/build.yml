@@ -47,17 +47,17 @@ jobs:
       s3:
         image: localstack/localstack:latest
         env:
-            - SERVICES=s3
+          SERVICES=s3
       postgres:
         image: healthcheck/postgres
         env:
-            - POSTGRES_DB=testdb
-            - POSTGRES_PASSWORD=password
+          - POSTGRES_DB=testdb
+          - POSTGRES_PASSWORD=password
       mariadb:
         image: healthcheck/mariadb
         env:
-            - MYSQL_DATABASE=testdb
-            - MYSQL_ROOT_PASSWORD=password
+          - MYSQL_DATABASE=testdb
+          - MYSQL_ROOT_PASSWORD=password
     steps:
       - uses: actions/checkout@v1
       - name: Run integration tests
