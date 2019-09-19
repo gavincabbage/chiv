@@ -119,6 +119,6 @@ jobs:
           AWS_ACCESS_KEY_ID: bogus
           AWS_SECRET_KEY: bogus
           AWS_REGION: us-east-1
-          AWS_ENDPOINT: http://s3:4572
+          AWS_ENDPOINT: http://localhost:${{ job.services.mariadb.ports['4572'] }}
           POSTGRES_URL: postgres://postgres:password@localhost:${{ job.services.postgres.ports['5432'] }}/testdb?sslmode=disable
 

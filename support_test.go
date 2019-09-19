@@ -14,6 +14,11 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 )
 
+const (
+	retryLimit    = 15
+	retryInterval = 3 * time.Second
+)
+
 type fataler interface {
 	Fatal(...interface{})
 }
@@ -24,9 +29,9 @@ func newDB(f fataler, driver string, url string) *sql.DB {
 		f.Fatal(err)
 	}
 
-	for i := 0; i < 15; i++ {
+	for i := 0; i < retryLimit; i++ {
 		if err := db.Ping(); err != nil {
-			time.Sleep(3 * time.Second)
+			time.Sleep(retryInterval)
 			continue
 		}
 		break
