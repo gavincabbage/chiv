@@ -271,7 +271,7 @@ func TestArchiver_Archive(t *testing.T) {
 			},
 		},
 		{
-			name:     "mariadb happy path csv",
+			name:     "mariadb happy path yaml",
 			driver:   "mysql",
 			database: os.Getenv("MARIADB_URL"),
 			setup:    "./testdata/mariadb/setup.sql",
@@ -291,7 +291,7 @@ func TestArchiver_Archive(t *testing.T) {
 			},
 		},
 		{
-			name:     "mariadb happy path csv",
+			name:     "mariadb happy path json",
 			driver:   "mysql",
 			database: os.Getenv("MARIADB_URL"),
 			setup:    "./testdata/mariadb/setup.sql",

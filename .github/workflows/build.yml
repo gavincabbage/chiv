@@ -58,7 +58,7 @@ jobs:
       mariadb:
         image: healthcheck/mariadb
         ports:
-          - 33066:33066
+          - 33066:3306
         env:
           MYSQL_DATABASE: testdb
           MYSQL_ROOT_PASSWORD: password
