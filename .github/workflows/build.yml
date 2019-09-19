@@ -48,11 +48,15 @@ jobs:
           SERVICES: s3
       postgres:
         image: healthcheck/postgres
+        ports:
+          - 5432:5432
         env:
           POSTGRES_DB: testdb
           POSTGRES_PASSWORD: password
       mariadb:
         image: healthcheck/mariadb
+        ports:
+          - 3306:3306
         env:
           MYSQL_DATABASE: testdb
           MYSQL_ROOT_PASSWORD: password
@@ -75,8 +79,8 @@ jobs:
           AWS_SECRET_KEY: bogus
           AWS_REGION: us-east-1
           AWS_ENDPOINT: http://s3:4572
-          POSTGRES_URL: postgres://postgres:password@postgres/testdb?sslmode=disable
-          MARIADB_URL: root:password@tcp(mariadb:3306)/testdb?charset=utf8&parseTime=True&loc=Local
+          POSTGRES_URL: postgres://postgres:password@localhost:${{ job.services.postgres.ports['5432'] }}/testdb?sslmode=disable
+          MARIADB_URL: root:password@tcp(localhost:${{ job.services.mariadb.ports['3306'] }})/testdb?charset=utf8&parseTime=True&loc=Local
 
   benchmark:
     name: Benchmark
@@ -88,6 +92,8 @@ jobs:
           SERVICES: s3
       postgres:
         image: healthcheck/postgres
+        ports:
+          - 5432:5432
         env:
           POSTGRES_DB: testdb
           POSTGRES_PASSWORD: password
@@ -105,4 +111,10 @@ jobs:
         run: go mod download
       - name: Benchmark
         run: go test -run=Benchmark -benchmem -bench=.
+        env:
+          AWS_ACCESS_KEY_ID: bogus
+          AWS_SECRET_KEY: bogus
+          AWS_REGION: us-east-1
+          AWS_ENDPOINT: http://s3:4572
+          POSTGRES_URL: postgres://postgres:password@localhost:${{ job.services.postgres.ports['5432'] }}/testdb?sslmode=disable
 
