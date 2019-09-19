@@ -75,7 +75,7 @@ jobs:
       - name: Install dependencies
         run: go mod download
       - name: Run integration tests
-        run: go test -v -p 1 -tags=integration -covermode=atomic -timeout=300s ./...
+        run: go test -v -p 1 -tags=integration -covermode=atomic -timeout=60s ./...
         env:
           AWS_ACCESS_KEY_ID: bogus
           AWS_SECRET_KEY: bogus
