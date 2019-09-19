@@ -75,20 +75,13 @@ func (f *csvFormatter) Close() error {
 type yamlFormatter struct {
 	w       io.Writer
 	columns []*sql.ColumnType
-	parser  *parser
 }
 
 // YAML returns an initialized YAML formatter.
 func YAML(w io.Writer, columns []*sql.ColumnType) (Formatter, error) {
-	p, err := newParser()
-	if err != nil {
-		return nil, err
-	}
-
 	f := yamlFormatter{
 		w:       w,
 		columns: columns,
-		parser:  p,
 	}
 
 	return &f, nil
@@ -100,7 +93,7 @@ func (f *yamlFormatter) Format(record [][]byte) error {
 		return errors.New("record length does not match number of columns")
 	}
 
-	m, err := buildMap(record, f.columns, f.parser)
+	m, err := buildMap(record, f.columns)
 	if err != nil {
 		return fmt.Errorf("transforming data: %w", err)
 	}
@@ -128,20 +121,13 @@ type jsonFormatter struct {
 	w        io.Writer
 	columns  []*sql.ColumnType
 	notFirst bool
-	parser   *parser
 }
 
 // JSON opens a JSON array and returns an initialized JSON formatter.
 func JSON(w io.Writer, columns []*sql.ColumnType) (Formatter, error) {
-	p, err := newParser()
-	if err != nil {
-		return nil, err
-	}
-
 	f := jsonFormatter{
 		w:       w,
 		columns: columns,
-		parser:  p,
 	}
 
 	if err := f.writeByte(openBracket); err != nil {
@@ -157,7 +143,7 @@ func (f *jsonFormatter) Format(record [][]byte) error {
 		return errors.New("record length does not match number of columns")
 	}
 
-	m, err := buildMap(record, f.columns, f.parser)
+	m, err := buildMap(record, f.columns)
 	if err != nil {
 		return fmt.Errorf("transforming data: %w", err)
 	}
@@ -195,32 +181,15 @@ func (f *jsonFormatter) writeByte(b byte) error {
 	return nil
 }
 
-type parser struct {
-	boolRegex    *regexp.Regexp
-	intRegex     *regexp.Regexp
-	decimalRegex *regexp.Regexp
+var pattern = struct {
+	boolean, integer, float *regexp.Regexp
+}{
+	boolean: regexp.MustCompile("BOOL*"),
+	integer: regexp.MustCompile("INT*"),
+	float:   regexp.MustCompile("DECIMAL*|FLOAT*|NUMERIC*|DOUBLE*"),
 }
 
-func newParser() (*parser, error) {
-	var (
-		boolRegex, boolErr       = regexp.Compile("BOOL*")
-		intRegex, intErr         = regexp.Compile("INT*")
-		decimalRegex, decimalErr = regexp.Compile("DECIMAL*|FLOAT*|NUMERIC*|DOUBLE*")
-	)
-	if boolErr != nil || intErr != nil || decimalErr != nil {
-		return nil, errors.New("initializing parser regex")
-	}
-
-	p := parser{
-		boolRegex:    boolRegex,
-		intRegex:     intRegex,
-		decimalRegex: decimalRegex,
-	}
-
-	return &p, nil
-}
-
-func (p *parser) parse(b []byte, t string) (interface{}, error) {
+func parse(b []byte, t string) (interface{}, error) {
 	if b == nil {
 		return nil, nil
 	}
@@ -229,21 +198,21 @@ func (p *parser) parse(b []byte, t string) (interface{}, error) {
 		s = string(b)
 	)
 	switch {
-	case p.boolRegex.MatchString(t):
+	case pattern.boolean.MatchString(t):
 		return strconv.ParseBool(s)
-	case p.intRegex.MatchString(t):
+	case pattern.integer.MatchString(t):
 		return strconv.Atoi(s)
-	case p.decimalRegex.MatchString(t):
+	case pattern.float.MatchString(t):
 		return strconv.ParseFloat(s, 64)
 	default:
 		return s, nil
 	}
 }
 
-func buildMap(record [][]byte, columns []*sql.ColumnType, p *parser) (map[string]interface{}, error) {
+func buildMap(record [][]byte, columns []*sql.ColumnType) (map[string]interface{}, error) {
 	m := make(map[string]interface{})
 	for i, column := range columns {
-		r, err := p.parse(record[i], columns[i].DatabaseTypeName())
+		r, err := parse(record[i], columns[i].DatabaseTypeName())
 		if err != nil {
 			return nil, err
 		}
