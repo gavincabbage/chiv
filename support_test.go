@@ -32,7 +32,7 @@ func newDB(t testing.TB, driver string, url string) *sql.DB {
 				time.Sleep(retryInterval)
 				continue
 			}
-			t.Fatalf("connecting to %s: %w", driver, err)
+			t.Fatalf("connecting to %s: %s", driver, err)
 		}
 		break
 	}
