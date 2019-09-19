@@ -320,6 +320,7 @@ func TestArchiver_Archive(t *testing.T) {
 				uploader   = s3manager.NewUploaderWithClient(s3client)
 				downloader = s3manager.NewDownloaderWithClient(s3client)
 			)
+			defer db.Close()
 
 			exec(t, db, readFile(t, test.setup))
 			defer exec(t, db, readFile(t, test.teardown))
@@ -355,6 +356,7 @@ func TestArchiveWithContext(t *testing.T) {
 		uploader   = s3manager.NewUploaderWithClient(s3client)
 		downloader = s3manager.NewDownloaderWithClient(s3client)
 	)
+	defer db.Close()
 
 	exec(t, db, readFile(t, setup))
 	defer exec(t, db, readFile(t, teardown))

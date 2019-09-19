@@ -28,7 +28,6 @@ func newDB(f fataler, driver string, url string) *sql.DB {
 	if err != nil {
 		f.Fatal(err)
 	}
-	db.SetMaxIdleConns(0) // See https://github.com/go-sql-driver/mysql/issues/674
 
 	for i := 0; i < retryLimit; i++ {
 		if err := db.Ping(); err != nil {
