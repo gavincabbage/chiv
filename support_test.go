@@ -1,4 +1,4 @@
-// +build integration,benchmark
+// +build integration benchmark
 
 package chiv_test
 
