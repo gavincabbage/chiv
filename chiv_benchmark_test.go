@@ -1,5 +1,7 @@
-// Package chiv_test includes integration tests and benchmarks external to package chiv
-// It relies on external services postgres and s3 (localstack) via CodeShip.
+// +build benchmark
+
+// Package chiv_test includes benchmarks external to package chiv.
+// These rely on external databases and s3 (localstack) via docker-compose.
 package chiv_test
 
 import (

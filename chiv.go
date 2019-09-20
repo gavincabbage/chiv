@@ -23,6 +23,16 @@ func ArchiveWithContext(ctx context.Context, db database, s3 uploader, table, bu
 	return NewArchiver(db, s3).ArchiveWithContext(ctx, table, bucket, options...)
 }
 
+// ArchiveRows to S3.
+func ArchiveRows(rows rows, s3 uploader, bucket string, options ...Option) error {
+	return ArchiveRowsWithContext(context.Background(), rows, s3, bucket, options...)
+}
+
+// ArchiveRowsWithContext is like ArchiveRows, with context.
+func ArchiveRowsWithContext(ctx context.Context, rows rows, s3 uploader, bucket string, options ...Option) error {
+	return NewArchiver(nil, s3).ArchiveRowsWithContext(ctx, rows, bucket, options...)
+}
+
 // Archiver archives database tables to Amazon S3.
 type Archiver struct {
 	db        database
@@ -56,51 +66,69 @@ func (a *Archiver) Archive(table, bucket string, options ...Option) error {
 }
 
 // ArchiveWithContext is like Archive, with context. Any options provided override those set on creation.
-func (a *Archiver) ArchiveWithContext(ctx context.Context, table, bucket string, options ...Option) error {
+func (a *Archiver) ArchiveWithContext(ctx context.Context, table, bucket string, options ...Option) (err error) {
 	b := *a
 	for _, option := range options {
 		option(&b)
 	}
 
-	return b.archive(ctx, table, bucket)
+	rows, err := b.query(ctx, table)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if e := rows.Close(); e != nil && err == nil {
+			err = e
+		}
+	}()
+
+	return b.archive(ctx, rows, table, bucket)
+}
+
+// ArchiveRows to S3.
+func (a *Archiver) ArchiveRows(rows rows, bucket string, options ...Option) (err error) {
+	return a.ArchiveRowsWithContext(context.Background(), rows, bucket)
+}
+
+// ArchiveRowsWithContext is like ArchiveRows, with context.
+func (a *Archiver) ArchiveRowsWithContext(ctx context.Context, rows rows, bucket string, options ...Option) (err error) {
+	b := *a
+	for _, option := range options {
+		option(&b)
+	}
+
+	return b.archive(ctx, rows, "", bucket)
 }
 
 type database interface {
 	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
 }
 
-type uploader interface {
-	UploadWithContext(ctx aws.Context, input *s3manager.UploadInput, opts ...func(*s3manager.Uploader)) (*s3manager.UploadOutput, error)
+type rows interface {
+	ColumnTypes() ([]*sql.ColumnType, error)
+	Next() bool
+	Scan(...interface{}) error
+	Err() error
 }
 
-func (a *Archiver) archive(parent context.Context, table string, bucket string) (err error) {
+func (a *Archiver) archive(ctx context.Context, rows rows, table, bucket string) (err error) {
 	var (
-		r, w   = io.Pipe()
-		g, ctx = errgroup.WithContext(parent)
+		r, w    = io.Pipe()
+		g, gctx = errgroup.WithContext(ctx)
 	)
 	g.Go(func() error {
-		return a.download(ctx, w, table)
+		return a.download(gctx, rows, w)
 	})
 	g.Go(func() error {
-		return a.upload(ctx, r, table, bucket)
+		return a.upload(gctx, r, table, bucket)
 	})
 
 	return g.Wait()
 }
 
-func (a *Archiver) download(ctx context.Context, w io.WriteCloser, table string) (err error) {
+func (a *Archiver) download(ctx context.Context, rows rows, w io.WriteCloser) (err error) {
 	defer func() {
 		if e := w.Close(); e != nil && err == nil {
-			err = e
-		}
-	}()
-
-	rows, err := a.query(ctx, table)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if e := rows.Close(); e != nil && err == nil {
 			err = e
 		}
 	}()
@@ -174,6 +202,10 @@ func (a *Archiver) query(ctx context.Context, table string) (*sql.Rows, error) {
 
 	query := fmt.Sprintf(`select %s from %s;`, columns, table)
 	return a.db.QueryContext(ctx, query)
+}
+
+type uploader interface {
+	UploadWithContext(ctx aws.Context, input *s3manager.UploadInput, opts ...func(*s3manager.Uploader)) (*s3manager.UploadOutput, error)
 }
 
 func (a *Archiver) upload(ctx context.Context, r io.ReadCloser, table string, bucket string) (err error) {

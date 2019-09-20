@@ -189,14 +189,12 @@ var pattern = struct {
 	float:   regexp.MustCompile("DECIMAL*|FLOAT*|NUMERIC*|DOUBLE*"),
 }
 
-func parse(b []byte, t string) (interface{}, error) {
-	if b == nil {
+func parse(v []byte, t string) (interface{}, error) {
+	if v == nil {
 		return nil, nil
 	}
 
-	var (
-		s = string(b)
-	)
+	s := string(v)
 	switch {
 	case pattern.boolean.MatchString(t):
 		return strconv.ParseBool(s)
@@ -212,7 +210,7 @@ func parse(b []byte, t string) (interface{}, error) {
 func buildMap(record [][]byte, columns []*sql.ColumnType) (map[string]interface{}, error) {
 	m := make(map[string]interface{})
 	for i, column := range columns {
-		r, err := parse(record[i], columns[i].DatabaseTypeName())
+		r, err := parse(record[i], column.DatabaseTypeName())
 		if err != nil {
 			return nil, err
 		}

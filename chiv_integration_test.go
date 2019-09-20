@@ -1,7 +1,7 @@
 // +build integration
 
-// Package chiv_test includes integration tests and benchmarks external to package chiv
-// It relies on external databases and s3 (localstack) via docker-compose.
+// Package chiv_test includes integration tests external to package chiv.
+// These rely on external databases and s3 (localstack) via docker-compose.
 package chiv_test
 
 import (
@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"gavincabbage.com/chiv"
@@ -19,26 +18,24 @@ import (
 	_ "github.com/lib/pq"
 )
 
-type test struct {
-	name     string
-	driver   string
-	database string
-	setup    string
-	teardown string
-	bucket   string
-	options  []chiv.Option
-	calls    []call
-}
-
-type call struct {
-	expected string
-	table    string
-	key      string
-	options  []chiv.Option
-}
-
 func TestArchiver_Archive(t *testing.T) {
-	cases := []test{
+	type call struct {
+		expected string
+		table    string
+		key      string
+		options  []chiv.Option
+	}
+
+	cases := []struct {
+		name     string
+		driver   string
+		database string
+		setup    string
+		teardown string
+		bucket   string
+		options  []chiv.Option
+		calls    []call
+	}{
 		{
 			name:     "happy path csv",
 			driver:   "postgres",
@@ -329,7 +326,7 @@ func TestArchiver_Archive(t *testing.T) {
 			defer deleteBucket(t, s3client, test.bucket)
 
 			subject := chiv.NewArchiver(db, uploader, test.options...)
-			assert.NotNil(t, subject)
+			require.NotNil(t, subject)
 
 			for _, call := range test.calls {
 				require.NoError(t, subject.Archive(call.table, test.bucket, call.options...))
