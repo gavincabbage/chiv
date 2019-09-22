@@ -59,6 +59,7 @@ func main() {
 			cli.StringFlag{
 				Name:     "format, f",
 				Usage:    "Upload format: csv, yaml or json",
+				Value:    "csv",
 				Required: false,
 			},
 			cli.StringFlag{
