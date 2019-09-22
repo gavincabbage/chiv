@@ -5,7 +5,7 @@ before:
     - go mod tidy
 builds:
   - binary: chiv
-    main: ./cmd/main.go
+    main: ./cmd/chiv/main.go
     goos:
       - linux
       - darwin
