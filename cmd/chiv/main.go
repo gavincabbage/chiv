@@ -22,13 +22,13 @@ var version = "v0.0.0"
 func main() {
 
 	app := cli.App{
-		Name:        "chiv",
-		HelpName:    "chiv",
-		Usage:       "Archive relational database",
-		Version:     version,
-		Description: "Ar[chiv]e relational database tables to Amazon S3",
-		HideHelp:    true,
-		Action:      run,
+		Name:      "chiv",
+		HelpName:  "chiv",
+		Usage:     "Archive relational database tables to Amazon S3",
+		Version:   version,
+		UsageText: "chiv [flags...]",
+		HideHelp:  true,
+		Action:    run,
 		Flags: []cli.Flag{
 			cli.StringFlag{
 				Name:     "database, d",
@@ -83,6 +83,14 @@ func main() {
 	cli.HandleExitCoder(app.Run(os.Args))
 }
 
+type config struct {
+	url     string
+	table   string
+	bucket  string
+	driver  string
+	options []chiv.Option
+}
+
 func run(ctx *cli.Context) (err error) {
 	defer func() {
 		if err != nil {
@@ -113,14 +121,6 @@ func run(ctx *cli.Context) (err error) {
 	uploader := s3manager.NewUploaderWithClient(client)
 
 	return chiv.Archive(db, uploader, config.table, config.bucket, config.options...)
-}
-
-type config struct {
-	url     string
-	table   string
-	bucket  string
-	driver  string
-	options []chiv.Option
 }
 
 func from(ctx *cli.Context) config {
