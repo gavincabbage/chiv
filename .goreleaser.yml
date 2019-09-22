@@ -4,16 +4,15 @@ before:
   hooks:
     - go mod tidy
 builds:
-  -
-    binary: chiv
+  - binary: chiv
     main: ./cmd/main.go
     goos:
       - linux
       - darwin
       - freebsd
       - windows
-- env:
-  - CGO_ENABLED=0
+    - env:
+      - CGO_ENABLED=0
 archives:
 - replacements:
     darwin: Darwin
