@@ -1,17 +1,12 @@
 // +build benchmark
 
-// Package chiv_test includes benchmarks external to package chiv.
-// These rely on external databases and s3 (localstack) via docker-compose.
 package chiv_test
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
-	"math/rand"
-	"os"
 	"testing"
-	"time"
-
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 
 	"gavincabbage.com/chiv"
 
@@ -20,57 +15,55 @@ import (
 )
 
 func BenchmarkArchiver_Archive(b *testing.B) {
-	const (
-		bucket = "benchmark_bucket"
-		table  = "benchmark_table"
-
-		createTable     = "CREATE TABLE IF NOT EXISTS benchmark_table (s_col TEXT, d_col INTEGER, f_col DECIMAL);"
-		insertIntoTable = "INSERT INTO benchmark_table VALUES ('%s', %d, %f);"
-		dropTable       = "DROP TABLE benchmark_table;"
-
-		charset    = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-		textLength = 1000
-	)
-
 	var (
-		benchmarks = []int{1, 10, 100, 1000}
-
-		db       = newDB(b, "postgres", os.Getenv("POSTGRES_URL"))
-		s3client = newS3Client(b, os.Getenv("AWS_REGION"), os.Getenv("AWS_ENDPOINT"))
-		uploader = s3manager.NewUploaderWithClient(s3client)
-		random   = rand.New(rand.NewSource(time.Now().Unix()))
+		bucket     = "benchmark_bucket"
+		benchmarks = []int{1, 10, 100, 1_000, 5_000, 10_000}
+		rows       = &benchmarkRows{columnTypes: make([]*sql.ColumnType, 8)}
+		uploader   = &uploader{}
+		format     = chiv.WithFormat(formatterFunc(&benchmarkFormatter{}, nil))
+		ctx        = context.Background()
 	)
 
 	for _, count := range benchmarks {
-		exec(b, db, createTable)
-		createBucket(b, s3client, bucket)
-
-		for i := 0; i < count; i++ {
-			statement := fmt.Sprintf(insertIntoTable, text(random, charset, textLength), i, 42.42)
-			exec(b, db, statement)
-		}
-
+		rows.max = count
 		b.Run(fmt.Sprintf("benchmark_%d", count), func(bb *testing.B) {
 			for j := 0; j < bb.N; j++ {
-				key := fmt.Sprintf("benchmark_%d_%d", count, j)
-				bb.ResetTimer()
-				if err := chiv.Archive(db, uploader, table, bucket, chiv.WithKey(key)); err != nil {
+				if err := chiv.ArchiveRowsWithContext(ctx, rows, uploader, bucket, format); err != nil {
 					bb.Error(err)
 				}
+				rows.ndx = 0
 			}
 		})
-
-		exec(b, db, dropTable)
-		deleteBucket(b, s3client, bucket)
 	}
-
 }
 
-func text(r *rand.Rand, charset string, length int) string {
-	b := make([]byte, length)
-	for i := range b {
-		b[i] = charset[r.Intn(len(charset))]
-	}
+type benchmarkRows struct {
+	columnTypes []*sql.ColumnType
+	ndx, max    int
+}
 
-	return string(b)
+func (r *benchmarkRows) ColumnTypes() ([]*sql.ColumnType, error) {
+	return r.columnTypes, nil
+}
+
+func (r *benchmarkRows) Next() bool {
+	return r.ndx < r.max
+}
+
+func (r *benchmarkRows) Scan(c ...interface{}) error {
+	r.ndx++
+	return nil
+}
+
+func (r *benchmarkRows) Err() error {
+	return nil
+}
+
+type benchmarkFormatter struct{}
+
+func (_ *benchmarkFormatter) Format(record [][]byte) error {
+	return nil
+}
+func (_ *benchmarkFormatter) Close() error {
+	return nil
 }

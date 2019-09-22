@@ -10,6 +10,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+
 	"github.com/stretchr/testify/require"
 
 	"gavincabbage.com/chiv"
@@ -204,6 +205,13 @@ type uploader struct {
 }
 
 func (u *uploader) UploadWithContext(ctx aws.Context, input *s3manager.UploadInput, opts ...func(*s3manager.Uploader)) (*s3manager.UploadOutput, error) {
+	p := make([]byte, 1)
+	for {
+		if _, err := input.Body.Read(p); err != nil {
+			break
+		}
+	}
+
 	return nil, u.uploadErr
 }
 
