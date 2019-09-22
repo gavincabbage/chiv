@@ -9,8 +9,6 @@ builds:
     goos:
       - linux
       - darwin
-      - freebsd
-      - windows
     - env:
       - CGO_ENABLED=0
 archives:
