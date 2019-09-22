@@ -54,7 +54,7 @@ jobs:
       - name: Install dependencies
         run: go mod download
       - name: Run benchmark
-        run: go test -v -p 1 -tags=benchmark -run=Benchmark -timeout=30s -benchmem -bench=.
+        run: go test -v -p 1 -tags=benchmark,unit -run=Benchmark -timeout=30s -benchmem -bench=.
 
   integration:
     name: Integration Tests
