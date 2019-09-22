@@ -38,6 +38,24 @@ jobs:
       - name: Run unit tests
         run: go test -v -p 1 -tags=unit -covermode=atomic -timeout=30s ./...
 
+  benchmark:
+    name: Benchmark
+    runs-on: ubuntu-18.04
+    strategy:
+      matrix:
+        go-version: [1.13]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v1
+      - name: Setup Go
+        uses: actions/setup-go@v1
+        with:
+          go-version: ${{ matrix.go-version }}
+      - name: Install dependencies
+        run: go mod download
+      - name: Run benchmark
+        run: go test -v -p 1 -tags=benchmark -run=Benchmark -timeout=30s -benchmem -bench=.
+
   integration:
     name: Integration Tests
     runs-on: ubuntu-18.04

@@ -1,4 +1,4 @@
-// Package chiv archives relational database tables to Amazon S3
+// Package chiv archives relational database tables to Amazon S3.
 package chiv
 
 import (
