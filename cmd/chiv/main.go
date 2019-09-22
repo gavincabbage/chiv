@@ -112,9 +112,7 @@ func run(ctx *cli.Context) (err error) {
 	client := s3.New(awsSession)
 	uploader := s3manager.NewUploaderWithClient(client)
 
-	fmt.Printf("Hello, World! (version %s)\n", version)
 	return chiv.Archive(db, uploader, config.table, config.bucket, config.options...)
-
 }
 
 type config struct {
@@ -127,7 +125,7 @@ type config struct {
 
 func from(ctx *cli.Context) config {
 	cfg := config{
-		url:    ctx.String("url"),
+		url:    ctx.String("database"),
 		table:  ctx.String("table"),
 		bucket: ctx.String("bucket"),
 		driver: ctx.String("driver"),
