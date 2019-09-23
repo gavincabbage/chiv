@@ -16,22 +16,12 @@ import (
 
 func BenchmarkArchiver_Archive(b *testing.B) {
 	var (
-		benchmarks = []int{
-			1,
-			10,
-			100,
-			1_000,
-			5_000,
-			10_000,
-		}
-
-		ctx  = context.Background()
-		rows = &benchmarkRows{
-			columnTypes: make([]*sql.ColumnType, 8),
-		}
-		uploader = &uploader{}
-		bucket   = "benchmark_bucket"
-		format   = chiv.WithFormat(formatterFunc(&benchmarkFormatter{}, nil))
+		benchmarks = []int{1, 10, 100, 1_000, 5_000, 10_000}
+		ctx        = context.Background()
+		rows       = &benchmarkRows{columnTypes: make([]*sql.ColumnType, 8)}
+		uploader   = &uploader{}
+		bucket     = "benchmark_bucket"
+		format     = chiv.WithFormat(formatterFunc(&benchmarkFormatter{}, nil))
 	)
 
 	for _, count := range benchmarks {
