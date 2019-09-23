@@ -11,6 +11,8 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@master
+      - name: Import private key
+        run: echo "${{ secrets.RELEASE_PRIVATE_KEY }}" | GPG_TTY=$(tty) gpg --import --batch
       - name: Release
         uses: docker://goreleaser/goreleaser
         env:

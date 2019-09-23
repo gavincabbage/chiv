@@ -9,6 +9,7 @@ builds:
     goos:
       - linux
       - darwin
+    ldflags: -s -w -X main.version={{.Version}}
     env:
       - CGO_ENABLED=0
 archives:
@@ -19,3 +20,8 @@ archives:
     amd64: x86_64
 checksum:
   name_template: 'checksums.txt'
+signs:
+  - artifacts: checksum
+    cmd: "GPG_TTY=$(tty) gpg"
+    args: ["--batch", "-u", "AE97EBEFD0224A77", "--output", "${signature}", "--detach-sign", "${artifact}"]
+
