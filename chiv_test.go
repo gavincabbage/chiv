@@ -152,8 +152,8 @@ func TestArchiveRows(t *testing.T) {
 			require.NoError(t, err)
 			require.True(t, test.formatter.closed)
 
-			for i, _ := range test.rows.scan {
-				for j, _ := range test.rows.scan[i] {
+			for i := range test.rows.scan {
+				for j := range test.rows.scan[i] {
 					require.True(t, i < len(test.formatter.written) && j < len(test.formatter.written[i]), "formatter written record count")
 					expected := test.rows.scan[i][j]
 					actual := test.formatter.written[i][j]
@@ -186,7 +186,7 @@ func (r *rows) Scan(c ...interface{}) error {
 	}
 
 	s := r.scan[r.scanNdx]
-	for i, _ := range s {
+	for i := range s {
 		if v, ok := c[i].(*sql.RawBytes); ok {
 			*v = sql.RawBytes(s[i])
 		}
