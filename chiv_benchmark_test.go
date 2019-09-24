@@ -16,12 +16,15 @@ import (
 
 func BenchmarkArchiver_Archive(b *testing.B) {
 	var (
-		benchmarks = []int{1, 10, 100, 1_000, 5_000, 10_000}
+		benchmarks = []int{1, 10, 100, 1_000, 5_000, 10_000, 1_000_000}
 		ctx        = context.Background()
-		rows       = &benchmarkRows{columnTypes: make([]*sql.ColumnType, 8)}
-		uploader   = &uploader{}
-		bucket     = "benchmark_bucket"
-		format     = chiv.WithFormat(formatterFunc(&benchmarkFormatter{}, nil))
+		rows       = &benchmarkRows{
+			columnTypes: make([]*sql.ColumnType, 10),
+			column:      sql.RawBytes("column_value"),
+		}
+		uploader = &uploader{}
+		bucket   = "benchmark_bucket"
+		format   = chiv.WithFormat(formatterFunc(&benchmarkFormatter{}, nil))
 	)
 
 	for _, count := range benchmarks {
@@ -39,6 +42,7 @@ func BenchmarkArchiver_Archive(b *testing.B) {
 
 type benchmarkRows struct {
 	columnTypes []*sql.ColumnType
+	column      sql.RawBytes
 	ndx, max    int
 }
 
@@ -51,6 +55,10 @@ func (r *benchmarkRows) Next() bool {
 }
 
 func (r *benchmarkRows) Scan(c ...interface{}) error {
+	for i := range c {
+		*(c[i].(*sql.RawBytes)) = r.column
+	}
+
 	r.ndx++
 	return nil
 }

@@ -16,7 +16,7 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
       - name: Install linter
-        run: curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh| sh -s v1.18.0
+        run: curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.18.0
       - name: Run linter
         run: ./bin/golangci-lint run
 
