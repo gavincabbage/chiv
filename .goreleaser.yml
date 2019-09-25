@@ -22,6 +22,5 @@ checksum:
   name_template: 'checksums.txt'
 signs:
   - artifacts: checksum
-    cmd: "GPG_TTY=$(tty) gpg"
     args: ["--batch", "-u", "AE97EBEFD0224A77", "--output", "${signature}", "--detach-sign", "${artifact}"]
 

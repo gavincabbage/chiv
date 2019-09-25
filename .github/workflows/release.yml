@@ -11,12 +11,10 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@master
-      - name: Import private key
-        run: echo "${{ secrets.RELEASE_PRIVATE_KEY }}" | GPG_TTY=$(tty) gpg --import --batch
       - name: Release
-        uses: docker://goreleaser/goreleaser
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: gavincabbage/ghaction-goreleaser@gc/signing
         with:
           args: release
-        if: success()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SIGNING_KEY: ${{ secrets.RELEASE_PRIVATE_KEY }}

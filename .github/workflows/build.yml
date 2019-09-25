@@ -11,6 +11,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v1
+        with:
+          fetch-depth: 1
       - name: Setup Go
         uses: actions/setup-go@v1
         with:
@@ -29,6 +31,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v1
+        with:
+          fetch-depth: 1
       - name: Setup Go
         uses: actions/setup-go@v1
         with:
@@ -47,6 +51,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v1
+        with:
+          fetch-depth: 1
       - name: Setup Go
         uses: actions/setup-go@v1
         with:
@@ -86,6 +92,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v1
+        with:
+          fetch-depth: 1
       - name: Setup Go
         uses: actions/setup-go@v1
         with:
