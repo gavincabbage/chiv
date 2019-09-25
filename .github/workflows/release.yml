@@ -12,9 +12,9 @@ jobs:
       - name: Check out code
         uses: actions/checkout@master
       - name: Release
-        uses: gavincabbage/ghaction-goreleaser@gc/signing
+        uses: gavincabbage/ghaction-goreleaser@signing
         with:
           args: release
+          key: ${{ secrets.RELEASE_PRIVATE_KEY }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SIGNING_KEY: ${{ secrets.RELEASE_PRIVATE_KEY }}
