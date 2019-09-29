@@ -136,7 +136,7 @@ func from(ctx *cli.Context) config {
 		cfg.options = append(cfg.options, chiv.WithColumns(columns...))
 	}
 
-	var m = map[string]chiv.FormatterFunc{
+	var m = map[string]chiv.Format{
 		"csv":  chiv.CSV,
 		"yaml": chiv.YAML,
 		"json": chiv.JSON,

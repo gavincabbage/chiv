@@ -381,6 +381,8 @@ const (
 )
 
 func newDB(t testing.TB, driver string, url string) *sql.DB {
+	t.Helper()
+
 	db, err := sql.Open(driver, url)
 	if err != nil {
 		t.Fatal(err)
@@ -401,6 +403,8 @@ func newDB(t testing.TB, driver string, url string) *sql.DB {
 }
 
 func newS3Client(t testing.TB, region string, endpoint string) *s3.S3 {
+	t.Helper()
+
 	awsConfig := aws.NewConfig().
 		WithRegion(region).
 		WithDisableSSL(true).
@@ -427,6 +431,8 @@ func exec(t testing.TB, db *sql.DB, statements string) {
 }
 
 func createBucket(t testing.TB, client *s3.S3, name string) {
+	t.Helper()
+
 	if _, err := client.CreateBucket(&s3.CreateBucketInput{
 		Bucket: aws.String(name),
 	}); err != nil {
@@ -435,6 +441,8 @@ func createBucket(t testing.TB, client *s3.S3, name string) {
 }
 
 func deleteBucket(t testing.TB, client *s3.S3, name string) {
+	t.Helper()
+
 	// we could do this more cleanly with BatchDeleteIterator, but localstack doesn't like batch deletes :shrug:
 	out, err := client.ListObjects(&s3.ListObjectsInput{
 		Bucket: aws.String(name),
@@ -460,6 +468,8 @@ func deleteBucket(t testing.TB, client *s3.S3, name string) {
 }
 
 func readFile(t testing.TB, path string) string {
+	t.Helper()
+
 	contents, err := ioutil.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -469,6 +479,8 @@ func readFile(t testing.TB, path string) string {
 }
 
 func download(t testing.TB, downloader *s3manager.Downloader, bucket string, key string) string {
+	t.Helper()
+
 	b := &aws.WriteAtBuffer{}
 	_, err := downloader.Download(b, &s3.GetObjectInput{
 		Bucket: aws.String(bucket),

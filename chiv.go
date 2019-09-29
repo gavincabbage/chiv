@@ -55,7 +55,7 @@ func ArchiveRowsWithContext(ctx context.Context, rows Rows, s3 Uploader, bucket 
 type Archiver struct {
 	db        Database
 	s3        Uploader
-	format    FormatterFunc
+	format    Format
 	key       string
 	extension string
 	null      []byte
@@ -140,7 +140,7 @@ func (a *Archiver) download(ctx context.Context, rows Rows, w io.WriteCloser) (e
 		}
 	}()
 
-	columns, err := rows.ColumnTypes()
+	columns, err := interfaced(rows.ColumnTypes())
 	if err != nil {
 		return err
 	}
@@ -233,4 +233,13 @@ func (a *Archiver) upload(ctx context.Context, r io.ReadCloser, table string, bu
 	})
 
 	return err
+}
+
+func interfaced(in []*sql.ColumnType, err error) ([]Column, error) {
+	out := make([]Column, len(in))
+	for i := range in {
+		out[i] = in[i]
+	}
+
+	return out, err
 }

@@ -1,7 +1,6 @@
 package chiv
 
 import (
-	"database/sql"
 	"encoding/csv"
 	"encoding/json"
 	"errors"
@@ -13,8 +12,13 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
-// FormatterFunc returns an initialized Formatter.
-type FormatterFunc func(io.Writer, []*sql.ColumnType) (Formatter, error)
+type Column interface {
+	DatabaseTypeName() string
+	Name() string
+}
+
+// Format is a function representing an upload format. It returns an initialized Formatter.
+type Format func(io.Writer, []Column) (Formatter, error)
 
 // Formatter formats and writes records.
 type Formatter interface {
@@ -30,7 +34,7 @@ type csvFormatter struct {
 }
 
 // CSV writes column headers and returns an initialized CSV formatter.
-func CSV(w io.Writer, columns []*sql.ColumnType) (Formatter, error) {
+func CSV(w io.Writer, columns []Column) (Formatter, error) {
 	f := &csvFormatter{
 		w:     csv.NewWriter(w),
 		count: len(columns),
@@ -74,11 +78,11 @@ func (f *csvFormatter) Close() error {
 
 type yamlFormatter struct {
 	w       io.Writer
-	columns []*sql.ColumnType
+	columns []Column
 }
 
 // YAML returns an initialized YAML formatter.
-func YAML(w io.Writer, columns []*sql.ColumnType) (Formatter, error) {
+func YAML(w io.Writer, columns []Column) (Formatter, error) {
 	f := yamlFormatter{
 		w:       w,
 		columns: columns,
@@ -119,12 +123,12 @@ const (
 
 type jsonFormatter struct {
 	w        io.Writer
-	columns  []*sql.ColumnType
+	columns  []Column
 	notFirst bool
 }
 
 // JSON opens a JSON array and returns an initialized JSON formatter.
-func JSON(w io.Writer, columns []*sql.ColumnType) (Formatter, error) {
+func JSON(w io.Writer, columns []Column) (Formatter, error) {
 	f := jsonFormatter{
 		w:       w,
 		columns: columns,
@@ -207,7 +211,7 @@ func parse(v []byte, t string) (interface{}, error) {
 	}
 }
 
-func buildMap(record [][]byte, columns []*sql.ColumnType) (map[string]interface{}, error) {
+func buildMap(record [][]byte, columns []Column) (map[string]interface{}, error) {
 	m := make(map[string]interface{})
 	for i, column := range columns {
 		r, err := parse(record[i], column.DatabaseTypeName())

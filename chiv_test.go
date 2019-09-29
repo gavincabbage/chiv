@@ -18,14 +18,14 @@ import (
 
 func TestArchiveRows(t *testing.T) {
 	cases := []struct {
-		name             string
-		rows             *rows
-		uploader         *uploader
-		bucket           string
-		formatter        *formatter
-		formatterFuncErr error
-		options          []chiv.Option
-		expectedErr      string
+		name        string
+		rows        *rows
+		uploader    *uploader
+		bucket      string
+		formatter   *formatter
+		formatErr   error
+		options     []chiv.Option
+		expectedErr string
 	}{
 		{
 			name:      "base case",
@@ -72,10 +72,10 @@ func TestArchiveRows(t *testing.T) {
 				columns: []string{"first_column", "second_column"},
 				scan:    [][]string{{"first", "second"}},
 			},
-			formatterFuncErr: errors.New("formatter func"),
-			expectedErr:      "formatter func",
-			uploader:         &uploader{},
-			formatter:        &formatter{},
+			formatErr:   errors.New("formatter func"),
+			expectedErr: "formatter func",
+			uploader:    &uploader{},
+			formatter:   &formatter{},
 		},
 		{
 			name: "scan error",
@@ -140,7 +140,7 @@ func TestArchiveRows(t *testing.T) {
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
 			var (
-				options = append(test.options, chiv.WithFormat(formatterFunc(test.formatter, test.formatterFuncErr)))
+				options = append(test.options, chiv.WithFormat(format(test.formatter, test.formatErr)))
 				err     = chiv.ArchiveRows(test.rows, test.uploader, "bucket", options...)
 			)
 
@@ -173,7 +173,7 @@ type rows struct {
 }
 
 func (r *rows) ColumnTypes() ([]*sql.ColumnType, error) {
-	return make([]*sql.ColumnType, len(r.columns)), r.columnTypesErr
+	return make([](*sql.ColumnType), len(r.columns)), r.columnTypesErr
 }
 
 func (r *rows) Next() bool {
@@ -215,8 +215,8 @@ func (u *uploader) UploadWithContext(ctx aws.Context, input *s3manager.UploadInp
 	return nil, u.uploadErr
 }
 
-func formatterFunc(f chiv.Formatter, err error) chiv.FormatterFunc {
-	return func(_ io.Writer, _ []*sql.ColumnType) (chiv.Formatter, error) {
+func format(f chiv.Formatter, err error) chiv.Format {
+	return func(_ io.Writer, _ []chiv.Column) (chiv.Formatter, error) {
 		return f, err
 	}
 }
