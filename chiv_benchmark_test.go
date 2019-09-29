@@ -41,12 +41,12 @@ func BenchmarkArchiver_Archive(b *testing.B) {
 }
 
 type benchmarkRows struct {
-	columnTypes []chiv.Column
+	columnTypes []*sql.ColumnType
 	column      sql.RawBytes
 	ndx, max    int
 }
 
-func (r *benchmarkRows) ColumnTypes() ([]chiv.Column, error) {
+func (r *benchmarkRows) ColumnTypes() ([]*sql.ColumnType, error) {
 	return r.columnTypes, nil
 }
 
