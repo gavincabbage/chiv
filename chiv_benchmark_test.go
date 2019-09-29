@@ -19,7 +19,7 @@ func BenchmarkArchiver_Archive(b *testing.B) {
 		benchmarks = []int{1, 10, 100, 1_000, 5_000, 10_000, 1_000_000}
 		ctx        = context.Background()
 		rows       = &benchmarkRows{
-			columnTypes: make([]chiv.Column, 10),
+			columnTypes: make([]*sql.ColumnType, 10),
 			column:      sql.RawBytes("column_value"),
 		}
 		uploader = &uploader{}
