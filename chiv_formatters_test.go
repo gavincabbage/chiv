@@ -81,7 +81,7 @@ func TestJsonFormatter(t *testing.T) {
 	test(t, expected, chiv.JSON)
 }
 
-func test(t *testing.T, expected []string, format chiv.Format) {
+func test(t *testing.T, expected []string, format chiv.FormatterFunc) {
 	for i, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
 			var (

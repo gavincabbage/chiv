@@ -4,7 +4,7 @@ package chiv
 type Option func(*Archiver)
 
 // WithFormat configures the upload format.
-func WithFormat(f Format) Option {
+func WithFormat(f FormatterFunc) Option {
 	return func(a *Archiver) {
 		a.format = f
 	}

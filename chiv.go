@@ -55,7 +55,7 @@ func ArchiveRowsWithContext(ctx context.Context, rows Rows, s3 Uploader, bucket 
 type Archiver struct {
 	db        Database
 	s3        Uploader
-	format    Format
+	format    FormatterFunc
 	key       string
 	extension string
 	null      []byte

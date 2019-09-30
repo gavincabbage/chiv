@@ -17,7 +17,7 @@ import (
 	_ "github.com/lib/pq"
 )
 
-var version = "v0.0.0"
+var version = "dev"
 
 func main() {
 
@@ -32,51 +32,51 @@ func main() {
 		Flags: []cli.Flag{
 			cli.StringFlag{
 				Name:     "database, d",
-				Usage:    "Database connection string",
+				Usage:    "database connection string",
 				EnvVar:   "DATABASE_URL",
 				Required: true,
 			},
 			cli.StringFlag{
 				Name:     "table, t",
-				Usage:    "Database table to archive",
+				Usage:    "database table to archive",
 				Required: true,
 			},
 			cli.StringFlag{
 				Name:     "bucket, b",
-				Usage:    "Upload S3 bucket name",
+				Usage:    "upload S3 bucket name",
 				Required: true,
 			},
 			cli.StringFlag{
 				Name:     "driver, r",
-				Usage:    "Database driver type: postgres or mysql",
+				Usage:    "database driver type: postgres or mysql",
 				Required: false,
 				Value:    "postgres",
 			},
 			cli.StringSliceFlag{
 				Name:  "columns, c",
-				Usage: "Database columns to archive, comma-separated",
+				Usage: "database columns to archive, comma-separated",
 			},
 			cli.StringFlag{
 				Name:     "format, f",
-				Usage:    "Upload format: csv, yaml or json",
+				Usage:    "upload format: csv, yaml or json",
 				Value:    "csv",
 				Required: false,
 			},
 			cli.StringFlag{
 				Name:  "key, k",
-				Usage: "Upload key",
+				Usage: "upload key",
 			},
 			cli.StringFlag{
 				Name:  "extension, e",
-				Usage: "Upload extension",
+				Usage: "upload extension",
 			},
 			cli.StringFlag{
 				Name:  "null, n",
-				Usage: "Upload null value",
+				Usage: "upload null value",
 			},
 			cli.BoolFlag{
 				Name:  "help, h",
-				Usage: "Show usage details",
+				Usage: "show usage details",
 			},
 		},
 	}
@@ -136,7 +136,7 @@ func from(ctx *cli.Context) config {
 		cfg.options = append(cfg.options, chiv.WithColumns(columns...))
 	}
 
-	var m = map[string]chiv.Format{
+	var m = map[string]chiv.FormatterFunc{
 		"csv":  chiv.CSV,
 		"yaml": chiv.YAML,
 		"json": chiv.JSON,

@@ -215,7 +215,7 @@ func (u *uploader) UploadWithContext(ctx aws.Context, input *s3manager.UploadInp
 	return nil, u.uploadErr
 }
 
-func format(f chiv.Formatter, err error) chiv.Format {
+func format(f chiv.Formatter, err error) chiv.FormatterFunc {
 	return func(_ io.Writer, _ []chiv.Column) (chiv.Formatter, error) {
 		return f, err
 	}

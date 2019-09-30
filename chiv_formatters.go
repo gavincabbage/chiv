@@ -17,12 +17,12 @@ type Column interface {
 	Name() string
 }
 
-// Format is a function representing an upload format. It returns an initialized Formatter.
-type Format func(io.Writer, []Column) (Formatter, error)
+// FormatterFunc returns an initialized Formatter.
+type FormatterFunc func(io.Writer, []Column) (Formatter, error)
 
 // Formatter formats and writes records.
 type Formatter interface {
-	// Format and write a single record.
+	// FormatterFunc and write a single record.
 	Format([][]byte) error
 	// Close the formatter and perform any format-specific cleanup operations.
 	Close() error
