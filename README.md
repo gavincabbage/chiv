@@ -1,11 +1,23 @@
-# gavincabbage.com/chiv
+![Image](img/chiv.png)
 
-[![Test Status](https://github.com/gavincabbage/chiv/workflows/build/badge.svg)](https://github.com/gavincabbage/chiv/actions)
-[![Go Report](https://goreportcard.com/badge/gavincabbage.com/chiv)](https://goreportcard.com/report/gavincabbage.com/chiv)
-[![GoDoc](https://godoc.org/gavincabbage.com/chiv?status.svg)](https://godoc.org/gavincabbage.com/chiv)
-[![License](http://img.shields.io/badge/License-MIT-blue.svg)](https://gavincabbage.com/chiv/blob/master/LICENSE)
+<div align="center">
+    <a href="https://github.com/gavincabbage/chiv/actions">
+        <img src="https://github.com/gavincabbage/chiv/workflows/build/badge.svg" alt="build" />
+    </a>
+    <a href="https://goreportcard.com/report/gavincabbage.com/chiv">
+        <img src="https://goreportcard.com/badge/gavincabbage.com/chiv" alt="go report" />
+    </a>
+    <a href="https://godoc.org/gavincabbage.com/chiv">
+        <img src="https://godoc.org/gavincabbage.com/chiv?status.svg" alt="godoc" />
+    </a>
+    <a href="https://gavincabbage.com/chiv/blob/master/LICENSE">
+        <img src="http://img.shields.io/badge/License-MIT-blue.svg" alt="license" />
+    </a>
+</div>
 
-Archive relational database tables to Amazon S3.
+<p align="center">
+    Archive relational database tables to Amazon S3.
+</p>
 
 ---
 
