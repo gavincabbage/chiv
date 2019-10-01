@@ -29,30 +29,37 @@ var cases = []testCase{
 				name:         "second_column",
 				databaseType: "TEXT",
 			},
+			{
+				name:         "third_column",
+				databaseType: "FLOAT",
+			},
 		},
 		records: [][][]byte{
 			{
 				[]byte("1"),
 				[]byte("first_row"),
+				[]byte("100"),
 			},
 			{
 				[]byte("2"),
 				[]byte("second_row"),
+				[]byte("12.12"),
 			},
 			{
 				[]byte("3"),
 				[]byte("third_row"),
+				[]byte("42.42"),
 			},
 		},
 	},
 }
 
 func TestCsvFormatter(t *testing.T) {
-	expected := []string{
-		`first_column,second_column
-1,first_row
-2,second_row
-3,third_row
+	expected := []string{`
+first_column,second_column,third_column
+1,first_row,100
+2,second_row,12.12
+3,third_row,42.42
 `,
 	}
 
@@ -60,13 +67,16 @@ func TestCsvFormatter(t *testing.T) {
 }
 
 func TestYamlFormatter(t *testing.T) {
-	expected := []string{
-		`- first_column: 1
+	expected := []string{`
+- first_column: 1
   second_column: first_row
+  third_column: 100
 - first_column: 2
   second_column: second_row
+  third_column: 12.12
 - first_column: 3
   second_column: third_row
+  third_column: 42.42
 `,
 	}
 
@@ -74,8 +84,8 @@ func TestYamlFormatter(t *testing.T) {
 }
 
 func TestJsonFormatter(t *testing.T) {
-	expected := []string{
-		`[{"first_column":1,"second_column":"first_row"},{"first_column":2,"second_column":"second_row"},{"first_column":3,"second_column":"third_row"}]`,
+	expected := []string{`
+[{"first_column":1,"second_column":"first_row","third_column":100},{"first_column":2,"second_column":"second_row","third_column":12.12},{"first_column":3,"second_column":"third_row","third_column":42.42}]`,
 	}
 
 	test(t, expected, chiv.JSON)
@@ -100,7 +110,7 @@ func test(t *testing.T, expected []string, format chiv.FormatterFunc) {
 			}
 
 			assert.NoError(t, subject.Close())
-			assert.Equal(t, expected[i], b.String())
+			assert.Equal(t, expected[i][1:], b.String())
 		})
 	}
 }

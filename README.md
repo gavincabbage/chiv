@@ -3,7 +3,7 @@
 ---
 
 <p align="center">
-    Archive relational database tables to Amazon S3.
+    Archive relational data to Amazon S3.
 </p>
 
 <div align="center">

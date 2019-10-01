@@ -40,7 +40,7 @@ jobs:
       - name: Install dependencies
         run: go mod download
       - name: Run unit tests
-        run: go test -v -p 1 -tags=unit -covermode=atomic -timeout=30s ./...
+        run: go test -v -p 1 -tags=unit -timeout=30s ./...
 
   benchmark:
     name: Benchmark
@@ -101,7 +101,7 @@ jobs:
       - name: Install dependencies
         run: go mod download
       - name: Run integration tests
-        run: go test -v -p 1 -tags=integration -covermode=atomic -timeout=60s ./...
+        run: go test -v -p 1 -tags=integration -timeout=60s ./...
         env:
           AWS_ACCESS_KEY_ID: bogus
           AWS_SECRET_KEY: bogus

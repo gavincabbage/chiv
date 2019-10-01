@@ -5,7 +5,8 @@ CREATE TABLE IF NOT EXISTS postgres_table (
     int_column INTEGER,
     float_column NUMERIC,
     bool_column BOOLEAN,
-    ts_column TIMESTAMP
+    ts_column TIMESTAMP,
+    json_column JSON
 );
 
 INSERT INTO postgres_table VALUES (
@@ -15,7 +16,8 @@ INSERT INTO postgres_table VALUES (
     42,
     3.14,
     true,
-    '2018-01-04'::timestamp
+    '2018-01-04'::timestamp,
+    '{"key":"value","num":42}'
 );
 
 INSERT INTO postgres_table VALUES (
@@ -25,7 +27,8 @@ INSERT INTO postgres_table VALUES (
     100,
     3.141592,
     true,
-    '2018-02-04'::timestamp
+    '2018-02-04'::timestamp,
+    '{"other":"value"}'
  );
 
 INSERT INTO postgres_table VALUES (
@@ -35,5 +38,6 @@ INSERT INTO postgres_table VALUES (
     101,
     null,
     false,
-    '2018-02-05'::timestamp
+    '2018-02-05'::timestamp,
+    '[{"item":"in an array"},{"num":999}]'
 );

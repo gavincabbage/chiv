@@ -45,23 +45,6 @@ func TestArchiver_Archive(t *testing.T) {
 		calls    []call
 	}{
 		{
-			name:     "happy path csv",
-			driver:   "postgres",
-			database: os.Getenv("POSTGRES_URL"),
-			setup:    "./testdata/postgres/postgres_setup.sql",
-			teardown: "./testdata/postgres/postgres_teardown.sql",
-			bucket:   "test_bucket",
-			options:  []chiv.Option{},
-			calls: []call{
-				{
-					expected: "./testdata/postgres/postgres.csv",
-					table:    "postgres_table",
-					key:      "postgres_table",
-					options:  []chiv.Option{},
-				},
-			},
-		},
-		{
 			name:     "postgres to csv",
 			driver:   "postgres",
 			database: os.Getenv("POSTGRES_URL"),
