@@ -1,5 +1,7 @@
 ![Image](img/chiv.png)
 
+---
+
 <div align="center">
     <a href="https://github.com/gavincabbage/chiv/actions">
         <img src="https://github.com/gavincabbage/chiv/workflows/build/badge.svg" alt="build" />
