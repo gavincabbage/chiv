@@ -2,6 +2,10 @@
 
 ---
 
+<p align="center">
+    Archive relational database tables to Amazon S3.
+</p>
+
 <div align="center">
     <a href="https://github.com/gavincabbage/chiv/actions">
         <img src="https://github.com/gavincabbage/chiv/workflows/build/badge.svg" alt="build" />
@@ -16,10 +20,6 @@
         <img src="http://img.shields.io/badge/License-MIT-blue.svg" alt="license" />
     </a>
 </div>
-
-<p align="center">
-    Archive relational database tables to Amazon S3.
-</p>
 
 ---
 
