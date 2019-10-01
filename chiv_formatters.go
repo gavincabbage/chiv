@@ -6,15 +6,17 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"reflect"
 	"regexp"
 	"strconv"
 
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 )
 
 type Column interface {
 	DatabaseTypeName() string
 	Name() string
+	ScanType() reflect.Type
 }
 
 // FormatterFunc returns an initialized Formatter.
@@ -185,6 +187,19 @@ func (f *jsonFormatter) writeByte(b byte) error {
 	return nil
 }
 
+func buildMap(record [][]byte, columns []Column) (map[string]interface{}, error) {
+	m := make(map[string]interface{})
+	for i, column := range columns {
+		r, err := parse(record[i], column)
+		if err != nil {
+			return nil, err
+		}
+		m[column.Name()] = r
+	}
+
+	return m, nil
+}
+
 var pattern = struct {
 	boolean, integer, float *regexp.Regexp
 }{
@@ -193,35 +208,38 @@ var pattern = struct {
 	float:   regexp.MustCompile("DECIMAL*|FLOAT*|NUMERIC*|DOUBLE*"),
 }
 
-func parse(v []byte, t string) (interface{}, error) {
+func parse(v []byte, c Column) (interface{}, error) {
 	if v == nil {
 		return nil, nil
 	}
 
-	s := string(v)
-	switch {
-	case pattern.boolean.MatchString(t):
-		return strconv.ParseBool(s)
-	case pattern.integer.MatchString(t):
-		return strconv.Atoi(s)
-	case pattern.float.MatchString(t):
-		return strconv.ParseFloat(s, 64)
-	default:
-		return s, nil
-	}
-}
-
-func buildMap(record [][]byte, columns []Column) (map[string]interface{}, error) {
-	m := make(map[string]interface{})
-	for i, column := range columns {
-		r, err := parse(record[i], column.DatabaseTypeName())
-		if err != nil {
-			return nil, err
+	var (
+		s = string(v)
+		t = c.ScanType()
+	)
+	if t != nil {
+		switch t.Kind() {
+		case reflect.Bool:
+			return strconv.ParseBool(s)
+		case reflect.Float32, reflect.Float64:
+			return strconv.ParseFloat(s, 64)
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+			reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			return strconv.Atoi(s)
 		}
-		m[column.Name()] = r
 	}
 
-	return m, nil
+	d := c.DatabaseTypeName()
+	switch {
+	case pattern.boolean.MatchString(d):
+		return strconv.ParseBool(s)
+	case pattern.float.MatchString(d):
+		return strconv.ParseFloat(s, 64)
+	case pattern.integer.MatchString(d):
+		return strconv.Atoi(s)
+	}
+
+	return s, nil
 }
 
 type marshaller func(interface{}) ([]byte, error)

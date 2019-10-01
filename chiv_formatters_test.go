@@ -4,6 +4,7 @@ package chiv_test
 
 import (
 	"bytes"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,6 +18,8 @@ type testCase struct {
 	records [][][]byte
 }
 
+var i interface{}
+
 var cases = []testCase{
 	{
 		name: "base case",
@@ -24,14 +27,22 @@ var cases = []testCase{
 			{
 				name:         "first_column",
 				databaseType: "INTEGER",
+				scanType:     reflect.TypeOf(0),
 			},
 			{
 				name:         "second_column",
 				databaseType: "TEXT",
+				scanType:     reflect.TypeOf(""),
 			},
 			{
 				name:         "third_column",
 				databaseType: "FLOAT",
+				scanType:     reflect.TypeOf(0.0),
+			},
+			{
+				name:         "fourth_column",
+				databaseType: "INTEGER",
+				scanType:     reflect.TypeOf(i),
 			},
 		},
 		records: [][][]byte{
@@ -39,16 +50,19 @@ var cases = []testCase{
 				[]byte("1"),
 				[]byte("first_row"),
 				[]byte("100"),
+				[]byte("6"),
 			},
 			{
 				[]byte("2"),
 				[]byte("second_row"),
 				[]byte("12.12"),
+				[]byte("7"),
 			},
 			{
 				[]byte("3"),
 				[]byte("third_row"),
 				[]byte("42.42"),
+				[]byte("8"),
 			},
 		},
 	},
@@ -56,10 +70,10 @@ var cases = []testCase{
 
 func TestCsvFormatter(t *testing.T) {
 	expected := []string{`
-first_column,second_column,third_column
-1,first_row,100
-2,second_row,12.12
-3,third_row,42.42
+first_column,second_column,third_column,fourth_column
+1,first_row,100,6
+2,second_row,12.12,7
+3,third_row,42.42,8
 `,
 	}
 
@@ -69,12 +83,15 @@ first_column,second_column,third_column
 func TestYamlFormatter(t *testing.T) {
 	expected := []string{`
 - first_column: 1
+  fourth_column: 6
   second_column: first_row
   third_column: 100
 - first_column: 2
+  fourth_column: 7
   second_column: second_row
   third_column: 12.12
 - first_column: 3
+  fourth_column: 8
   second_column: third_row
   third_column: 42.42
 `,
@@ -85,7 +102,7 @@ func TestYamlFormatter(t *testing.T) {
 
 func TestJsonFormatter(t *testing.T) {
 	expected := []string{`
-[{"first_column":1,"second_column":"first_row","third_column":100},{"first_column":2,"second_column":"second_row","third_column":12.12},{"first_column":3,"second_column":"third_row","third_column":42.42}]`,
+[{"first_column":1,"fourth_column":6,"second_column":"first_row","third_column":100},{"first_column":2,"fourth_column":7,"second_column":"second_row","third_column":12.12},{"first_column":3,"fourth_column":8,"second_column":"third_row","third_column":42.42}]`,
 	}
 
 	test(t, expected, chiv.JSON)
@@ -118,6 +135,7 @@ func test(t *testing.T, expected []string, format chiv.FormatterFunc) {
 type column struct {
 	databaseType string
 	name         string
+	scanType     reflect.Type
 }
 
 func (c column) DatabaseTypeName() string {
@@ -126,4 +144,8 @@ func (c column) DatabaseTypeName() string {
 
 func (c column) Name() string {
 	return c.name
+}
+
+func (c column) ScanType() reflect.Type {
+	return c.scanType
 }
