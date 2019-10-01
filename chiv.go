@@ -92,11 +92,11 @@ func (a *Archiver) ArchiveWithContext(ctx context.Context, table, bucket string,
 
 	rows, err := b.query(ctx, table)
 	if err != nil {
-		return err
+		return fmt.Errorf("chiv: querying '%s': %w", table, err)
 	}
 	defer func() {
 		if e := rows.Close(); e != nil && err == nil {
-			err = e
+			err = fmt.Errorf("chiv: closing rows: %w", e)
 		}
 	}()
 
@@ -136,18 +136,18 @@ func (a *Archiver) archive(ctx context.Context, rows Rows, table, bucket string)
 func (a *Archiver) download(ctx context.Context, rows Rows, w io.WriteCloser) (err error) {
 	defer func() {
 		if e := w.Close(); e != nil && err == nil {
-			err = e
+			err = fmt.Errorf("chiv: downloading: closing writer: %w", e)
 		}
 	}()
 
 	columns, err := interfaced(rows.ColumnTypes())
 	if err != nil {
-		return err
+		return fmt.Errorf("chiv: downloading: getting column types: %w", err)
 	}
 
-	f, err := a.format(w, columns)
+	formatter, err := a.format(w, columns)
 	if err != nil {
-		return err
+		return fmt.Errorf("chiv: downloading: opening formatter: %w", err)
 	}
 
 	var (
@@ -166,7 +166,7 @@ func (a *Archiver) download(ctx context.Context, rows Rows, w io.WriteCloser) (e
 		default:
 			err = rows.Scan(scanned...)
 			if err != nil {
-				return err
+				return fmt.Errorf("chiv: downloading: scanning row: %w", err)
 			}
 
 			for i, raw := range rawBytes {
@@ -177,18 +177,18 @@ func (a *Archiver) download(ctx context.Context, rows Rows, w io.WriteCloser) (e
 				}
 			}
 
-			if err := f.Format(record); err != nil {
-				return err
+			if err := formatter.Format(record); err != nil {
+				return fmt.Errorf("chiv: downloading: formatting row: %w", err)
 			}
 		}
 	}
 
 	if err := rows.Err(); err != nil {
-		return err
+		return fmt.Errorf("chiv: downloading: scanning rows: %w", err)
 	}
 
-	if err := f.Close(); err != nil {
-		return err
+	if err := formatter.Close(); err != nil {
+		return fmt.Errorf("chiv: downloading: closing formatter: %w", err)
 	}
 
 	return nil
@@ -214,7 +214,7 @@ func (a *Archiver) query(ctx context.Context, table string) (*sql.Rows, error) {
 func (a *Archiver) upload(ctx context.Context, r io.ReadCloser, table string, bucket string) (err error) {
 	defer func() {
 		if e := r.Close(); e != nil && err == nil {
-			err = e
+			err = fmt.Errorf("chiv: uploading: closing reader: %w", e)
 		}
 	}()
 
@@ -226,13 +226,15 @@ func (a *Archiver) upload(ctx context.Context, r io.ReadCloser, table string, bu
 		}
 	}
 
-	_, err = a.s3.UploadWithContext(ctx, &s3manager.UploadInput{
+	if _, err := a.s3.UploadWithContext(ctx, &s3manager.UploadInput{
 		Body:   r,
 		Bucket: aws.String(bucket),
 		Key:    aws.String(a.key),
-	})
+	}); err != nil {
+		return fmt.Errorf("chiv: uploading: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 func interfaced(in []*sql.ColumnType, err error) ([]Column, error) {
