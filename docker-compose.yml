@@ -4,7 +4,7 @@ services:
 
   test:
     build: .
-    command: go test -p 1 -tags=unit,integration -covermode=atomic -timeout=60s ./...
+    command: go test -p 1 -tags=unit,integration -covermode=count -timeout=60s ./...
     environment:
       - AWS_ACCESS_KEY_ID=bogus
       - AWS_SECRET_KEY=bogus

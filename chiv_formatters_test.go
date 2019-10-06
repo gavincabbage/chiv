@@ -119,8 +119,8 @@ func test(t *testing.T, expected []string, format chiv.FormatterFunc) {
 				columns[i] = test.columns[i]
 			}
 
-			subject, err := format(&b, columns)
-			assert.NoError(t, err)
+			subject := format(&b, columns)
+			assert.NoError(t, subject.Open())
 
 			for _, record := range test.records {
 				assert.NoError(t, subject.Format(record))

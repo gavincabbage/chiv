@@ -13,54 +13,66 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+// Column reports its name, database type name and scan type.
 type Column interface {
-	DatabaseTypeName() string
 	Name() string
+	DatabaseTypeName() string
 	ScanType() reflect.Type
 }
 
 // FormatterFunc returns an initialized Formatter.
-type FormatterFunc func(io.Writer, []Column) (Formatter, error)
+type FormatterFunc func(io.Writer, []Column) Formatter
 
-// Formatter formats and writes records.
+// Formatter formats and writes records. A custom Formatter may
+// implement Extensioner to provide chiv with a default file extension.
 type Formatter interface {
-	// FormatterFunc and write a single record.
+	// Open the Formatter and perform any format-specific initialization.
+	Open() error
+	// Format and write a single record.
 	Format([][]byte) error
-	// Close the formatter and perform any format-specific cleanup operations.
+	// Close the Formatter and perform any format-specific cleanup.
 	Close() error
 }
 
+// Extensioner is a Formatter that provides a default extension.
+type Extensioner interface {
+	Extension() string
+}
+
 type csvFormatter struct {
-	w     *csv.Writer
-	count int
+	w       *csv.Writer
+	columns []Column
 }
 
 // CSV writes column headers and returns an initialized CSV formatter.
-func CSV(w io.Writer, columns []Column) (Formatter, error) {
-	f := &csvFormatter{
-		w:     csv.NewWriter(w),
-		count: len(columns),
+func CSV(w io.Writer, columns []Column) Formatter {
+	return &csvFormatter{
+		w:       csv.NewWriter(w),
+		columns: columns,
 	}
+}
 
-	header := make([]string, f.count)
-	for i, column := range columns {
+// Open the CSV formatter by writing the CSV header.
+func (f *csvFormatter) Open() error {
+	header := make([]string, len(f.columns))
+	for i, column := range f.columns {
 		header[i] = column.Name()
 	}
 
 	if err := f.w.Write(header); err != nil {
-		return nil, fmt.Errorf("writing header: %w", err)
+		return fmt.Errorf("writing header: %w", err)
 	}
 
-	return f, nil
+	return nil
 }
 
 // Format a CSV record.
 func (f *csvFormatter) Format(record [][]byte) error {
-	if f.count != len(record) {
+	if len(f.columns) != len(record) {
 		return errors.New("record length does not match number of columns")
 	}
 
-	strings := make([]string, f.count)
+	strings := make([]string, len(f.columns))
 	for i, item := range record {
 		strings[i] = string(item)
 	}
@@ -84,13 +96,16 @@ type yamlFormatter struct {
 }
 
 // YAML returns an initialized YAML formatter.
-func YAML(w io.Writer, columns []Column) (Formatter, error) {
-	f := yamlFormatter{
+func YAML(w io.Writer, columns []Column) Formatter {
+	return &yamlFormatter{
 		w:       w,
 		columns: columns,
 	}
+}
 
-	return &f, nil
+// Open the YAML formatter.
+func (_ *yamlFormatter) Open() error {
+	return nil
 }
 
 // Format a YAML record.
@@ -130,17 +145,20 @@ type jsonFormatter struct {
 }
 
 // JSON opens a JSON array and returns an initialized JSON formatter.
-func JSON(w io.Writer, columns []Column) (Formatter, error) {
-	f := jsonFormatter{
+func JSON(w io.Writer, columns []Column) Formatter {
+	return &jsonFormatter{
 		w:       w,
 		columns: columns,
 	}
+}
 
+// Open the JSON array.
+func (f *jsonFormatter) Open() error {
 	if err := f.writeByte(openBracket); err != nil {
-		return nil, fmt.Errorf("writing json: %w", err)
+		return fmt.Errorf("writing json: %w", err)
 	}
 
-	return &f, nil
+	return nil
 }
 
 // Format a JSON record.
@@ -169,7 +187,7 @@ func (f *jsonFormatter) Format(record [][]byte) error {
 	return nil
 }
 
-// Close the jsonFormatter after closing the JSON array.
+// Close the JSON formatter after closing the JSON array.
 func (f *jsonFormatter) Close() error {
 	if err := f.writeByte(closeBracket); err != nil {
 		return fmt.Errorf("closing json formatter: %w", err)

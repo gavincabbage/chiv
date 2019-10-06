@@ -20,7 +20,6 @@ import (
 var version = "dev"
 
 func main() {
-
 	app := cli.App{
 		Name:      "chiv",
 		HelpName:  "chiv",

@@ -23,7 +23,6 @@ func TestArchiveRows(t *testing.T) {
 		uploader    *uploader
 		bucket      string
 		formatter   *formatter
-		formatErr   error
 		options     []chiv.Option
 		expectedErr string
 	}{
@@ -62,7 +61,7 @@ func TestArchiveRows(t *testing.T) {
 				scan:           [][]string{{"first", "second"}},
 				columnTypesErr: errors.New("column types"),
 			},
-			expectedErr: "chiv: downloading: getting column types: column types",
+			expectedErr: "chiv: getting column types from rows: column types",
 			uploader:    &uploader{},
 			formatter:   &formatter{},
 		},
@@ -72,10 +71,11 @@ func TestArchiveRows(t *testing.T) {
 				columns: []string{"first_column", "second_column"},
 				scan:    [][]string{{"first", "second"}},
 			},
-			formatErr:   errors.New("formatter func"),
-			expectedErr: "chiv: downloading: opening formatter: formatter func",
+			expectedErr: "chiv: downloading: opening formatter: opening formatter",
 			uploader:    &uploader{},
-			formatter:   &formatter{},
+			formatter: &formatter{
+				openErr: errors.New("opening formatter"),
+			},
 		},
 		{
 			name: "scan error",
@@ -140,7 +140,7 @@ func TestArchiveRows(t *testing.T) {
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
 			var (
-				options = append(test.options, chiv.WithFormat(format(test.formatter, test.formatErr)))
+				options = append(test.options, chiv.WithFormat(format(test.formatter)))
 				err     = chiv.ArchiveRows(test.rows, test.uploader, "bucket", options...)
 			)
 
@@ -215,16 +215,20 @@ func (u *uploader) UploadWithContext(ctx aws.Context, input *s3manager.UploadInp
 	return nil, u.uploadErr
 }
 
-func format(f chiv.Formatter, err error) chiv.FormatterFunc {
-	return func(_ io.Writer, _ []chiv.Column) (chiv.Formatter, error) {
-		return f, err
+func format(f chiv.Formatter) chiv.FormatterFunc {
+	return func(_ io.Writer, _ []chiv.Column) chiv.Formatter {
+		return f
 	}
 }
 
 type formatter struct {
-	closed              bool
-	written             [][]string
-	formatErr, closeErr error
+	closed                       bool
+	written                      [][]string
+	openErr, formatErr, closeErr error
+}
+
+func (f *formatter) Open() error {
+	return f.openErr
 }
 
 func (f *formatter) Format(record [][]byte) error {

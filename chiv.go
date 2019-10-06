@@ -92,11 +92,11 @@ func (a *Archiver) ArchiveWithContext(ctx context.Context, table, bucket string,
 
 	rows, err := b.query(ctx, table)
 	if err != nil {
-		return fmt.Errorf("chiv: querying '%s': %w", table, err)
+		return errorf("querying '%s': %w", table, err)
 	}
 	defer func() {
 		if e := rows.Close(); e != nil && err == nil {
-			err = fmt.Errorf("chiv: closing rows: %w", e)
+			err = errorf("closing rows: %w", e)
 		}
 	}()
 
@@ -119,12 +119,18 @@ func (a *Archiver) ArchiveRowsWithContext(ctx context.Context, rows Rows, bucket
 }
 
 func (a *Archiver) archive(ctx context.Context, rows Rows, table, bucket string) (err error) {
+	columns, err := interfaced(rows.ColumnTypes())
+	if err != nil {
+		return errorf("getting column types from rows: %w", err)
+	}
+
 	var (
-		r, w    = io.Pipe()
-		g, gctx = errgroup.WithContext(ctx)
+		r, w      = io.Pipe()
+		formatter = a.format(w, columns)
+		g, gctx   = errgroup.WithContext(ctx)
 	)
 	g.Go(func() error {
-		return a.download(gctx, rows, w)
+		return a.download(gctx, rows, columns, formatter, w)
 	})
 	g.Go(func() error {
 		return a.upload(gctx, r, table, bucket)
@@ -133,21 +139,15 @@ func (a *Archiver) archive(ctx context.Context, rows Rows, table, bucket string)
 	return g.Wait()
 }
 
-func (a *Archiver) download(ctx context.Context, rows Rows, w io.WriteCloser) (err error) {
+func (a *Archiver) download(ctx context.Context, rows Rows, columns []Column, formatter Formatter, w io.WriteCloser) (err error) {
 	defer func() {
 		if e := w.Close(); e != nil && err == nil {
-			err = fmt.Errorf("chiv: downloading: closing writer: %w", e)
+			err = errorf("downloading: closing writer: %w", e)
 		}
 	}()
 
-	columns, err := interfaced(rows.ColumnTypes())
-	if err != nil {
-		return fmt.Errorf("chiv: downloading: getting column types: %w", err)
-	}
-
-	formatter, err := a.format(w, columns)
-	if err != nil {
-		return fmt.Errorf("chiv: downloading: opening formatter: %w", err)
+	if err := formatter.Open(); err != nil {
+		return errorf("downloading: opening formatter: %w", err)
 	}
 
 	var (
@@ -166,7 +166,7 @@ func (a *Archiver) download(ctx context.Context, rows Rows, w io.WriteCloser) (e
 		default:
 			err = rows.Scan(scanned...)
 			if err != nil {
-				return fmt.Errorf("chiv: downloading: scanning row: %w", err)
+				return errorf("downloading: scanning row: %w", err)
 			}
 
 			for i, raw := range rawBytes {
@@ -178,17 +178,17 @@ func (a *Archiver) download(ctx context.Context, rows Rows, w io.WriteCloser) (e
 			}
 
 			if err := formatter.Format(record); err != nil {
-				return fmt.Errorf("chiv: downloading: formatting row: %w", err)
+				return errorf("downloading: formatting row: %w", err)
 			}
 		}
 	}
 
 	if err := rows.Err(); err != nil {
-		return fmt.Errorf("chiv: downloading: scanning rows: %w", err)
+		return errorf("downloading: scanning rows: %w", err)
 	}
 
 	if err := formatter.Close(); err != nil {
-		return fmt.Errorf("chiv: downloading: closing formatter: %w", err)
+		return errorf("downloading: closing formatter: %w", err)
 	}
 
 	return nil
@@ -207,14 +207,14 @@ func (a *Archiver) query(ctx context.Context, table string) (*sql.Rows, error) {
 		columns = b.String()
 	}
 
-	query := fmt.Sprintf(`select %s from %s;`, columns, table)
+	query := fmt.Sprintf(`SELECT %s FROM %s;`, columns, table)
 	return a.db.QueryContext(ctx, query)
 }
 
 func (a *Archiver) upload(ctx context.Context, r io.ReadCloser, table string, bucket string) (err error) {
 	defer func() {
 		if e := r.Close(); e != nil && err == nil {
-			err = fmt.Errorf("chiv: uploading: closing reader: %w", e)
+			err = errorf("uploading: closing reader: %w", e)
 		}
 	}()
 
@@ -231,7 +231,7 @@ func (a *Archiver) upload(ctx context.Context, r io.ReadCloser, table string, bu
 		Bucket: aws.String(bucket),
 		Key:    aws.String(a.key),
 	}); err != nil {
-		return fmt.Errorf("chiv: uploading: %w", err)
+		return errorf("uploading: %w", err)
 	}
 
 	return nil
@@ -244,4 +244,8 @@ func interfaced(in []*sql.ColumnType, err error) ([]Column, error) {
 	}
 
 	return out, err
+}
+
+func errorf(format string, args ...interface{}) error {
+	return fmt.Errorf("chiv: "+format, args...)
 }
