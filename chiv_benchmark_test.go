@@ -24,7 +24,7 @@ func BenchmarkArchiver_Archive(b *testing.B) {
 		}
 		uploader = &uploader{}
 		bucket   = "benchmark_bucket"
-		format   = chiv.WithFormat(format(&benchmarkFormatter{}, nil))
+		format   = chiv.WithFormat(format(&benchmarkFormatter{}))
 	)
 
 	for _, count := range benchmarks {
@@ -69,9 +69,14 @@ func (r *benchmarkRows) Err() error {
 
 type benchmarkFormatter struct{}
 
+func (_ *benchmarkFormatter) Open() error {
+	return nil
+}
+
 func (_ *benchmarkFormatter) Format(record [][]byte) error {
 	return nil
 }
+
 func (_ *benchmarkFormatter) Close() error {
 	return nil
 }
