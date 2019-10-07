@@ -16,7 +16,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
-
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/stretchr/testify/require"
 
@@ -56,7 +55,7 @@ func TestArchiver_Archive(t *testing.T) {
 				{
 					expected: "./testdata/postgres/postgres.csv",
 					table:    "postgres_table",
-					key:      "postgres_table",
+					key:      "postgres_table.csv",
 					options:  []chiv.Option{},
 				},
 			},
@@ -69,13 +68,13 @@ func TestArchiver_Archive(t *testing.T) {
 			teardown: "./testdata/postgres/postgres_teardown.sql",
 			bucket:   "postgres_bucket",
 			options: []chiv.Option{
-				chiv.WithKey("postgres_table.csv"),
+				chiv.WithKey("archive.csv"),
 			},
 			calls: []call{
 				{
 					expected: "./testdata/postgres/postgres.csv",
 					table:    "postgres_table",
-					key:      "postgres_table.csv",
+					key:      "archive.csv",
 					options:  []chiv.Option{},
 				},
 			},
@@ -94,7 +93,7 @@ func TestArchiver_Archive(t *testing.T) {
 				{
 					expected: "./testdata/postgres/postgres_with_null.csv",
 					table:    "postgres_table",
-					key:      "postgres_table",
+					key:      "postgres_table.csv",
 					options:  []chiv.Option{},
 				},
 			},
@@ -108,7 +107,6 @@ func TestArchiver_Archive(t *testing.T) {
 			bucket:   "postgres_bucket",
 			options: []chiv.Option{
 				chiv.WithFormat(chiv.JSON),
-				chiv.WithKey("postgres_table.json"),
 			},
 			calls: []call{
 				{
@@ -128,7 +126,6 @@ func TestArchiver_Archive(t *testing.T) {
 			bucket:   "postgres_bucket",
 			options: []chiv.Option{
 				chiv.WithFormat(chiv.YAML),
-				chiv.WithKey("postgres_table.yaml"),
 			},
 			calls: []call{
 				{
@@ -156,16 +153,13 @@ func TestArchiver_Archive(t *testing.T) {
 					key:      "postgres_table.json",
 					options: []chiv.Option{
 						chiv.WithFormat(chiv.JSON),
-						chiv.WithKey("postgres_table.json"),
 					},
 				},
 				{
 					expected: "./testdata/postgres/postgres.yaml",
 					table:    "postgres_table",
 					key:      "postgres_table.yaml",
-					options: []chiv.Option{
-						chiv.WithKey("postgres_table.yaml"),
-					},
+					options:  []chiv.Option{},
 				},
 			},
 		},
@@ -191,7 +185,7 @@ func TestArchiver_Archive(t *testing.T) {
 				{
 					expected: "./testdata/postgres/postgres.yaml",
 					table:    "postgres_table",
-					key:      "postgres_table",
+					key:      "postgres_table.yaml",
 					options:  []chiv.Option{},
 				},
 			},
@@ -205,7 +199,6 @@ func TestArchiver_Archive(t *testing.T) {
 			bucket:   "postgres_bucket",
 			options: []chiv.Option{
 				chiv.WithFormat(chiv.CSV),
-				chiv.WithExtension("csv"),
 			},
 			calls: []call{
 				{
@@ -234,7 +227,7 @@ func TestArchiver_Archive(t *testing.T) {
 				{
 					expected: "./testdata/postgres/postgres_subset.csv",
 					table:    "postgres_table",
-					key:      "postgres_table",
+					key:      "postgres_table.csv",
 					options: []chiv.Option{
 						chiv.WithColumns("id", "text_column", "int_column"),
 					},
@@ -253,7 +246,7 @@ func TestArchiver_Archive(t *testing.T) {
 				{
 					expected: "./testdata/mariadb/happy.csv",
 					table:    "test_table",
-					key:      "test_table",
+					key:      "test_table.csv",
 					options:  []chiv.Option{},
 				},
 			},
@@ -267,13 +260,12 @@ func TestArchiver_Archive(t *testing.T) {
 			bucket:   "mariadb_bucket",
 			options: []chiv.Option{
 				chiv.WithFormat(chiv.YAML),
-				chiv.WithKey("mariadb_table.yaml"),
 			},
 			calls: []call{
 				{
 					expected: "./testdata/mariadb/happy.yaml",
 					table:    "test_table",
-					key:      "mariadb_table.yaml",
+					key:      "test_table.yaml",
 					options:  []chiv.Option{},
 				},
 			},
@@ -287,7 +279,6 @@ func TestArchiver_Archive(t *testing.T) {
 			bucket:   "mariadb_bucket",
 			options: []chiv.Option{
 				chiv.WithFormat(chiv.JSON),
-				chiv.WithKey("test_table.json"),
 			},
 			calls: []call{
 				{
@@ -336,6 +327,7 @@ func TestArchiveWithContext(t *testing.T) {
 		driver     = "postgres"
 		bucket     = "postgres_bucket"
 		table      = "postgres_table"
+		key        = "postgres_table.csv"
 		setup      = "./testdata/postgres/postgres_setup.sql"
 		teardown   = "./testdata/postgres/postgres_teardown.sql"
 		expected   = "./testdata/postgres/postgres.csv"
@@ -354,7 +346,7 @@ func TestArchiveWithContext(t *testing.T) {
 
 	require.NoError(t, chiv.ArchiveWithContext(context.Background(), db, uploader, table, bucket))
 
-	actual := download(t, downloader, bucket, table)
+	actual := download(t, downloader, bucket, key)
 	require.Equal(t, readFile(t, expected), actual)
 }
 

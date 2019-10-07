@@ -129,6 +129,9 @@ func (a *Archiver) archive(ctx context.Context, rows Rows, table, bucket string)
 		formatter = a.format(w, columns)
 		g, gctx   = errgroup.WithContext(ctx)
 	)
+	if extensioner, ok := formatter.(Extensioner); ok && a.extension == "" {
+		a.extension = extensioner.Extension()
+	}
 	g.Go(func() error {
 		return a.download(gctx, rows, columns, formatter, w)
 	})
@@ -218,6 +221,9 @@ func (a *Archiver) upload(ctx context.Context, r io.ReadCloser, table string, bu
 		}
 	}()
 
+	if table == "" {
+		table = "table"
+	}
 	if a.key == "" {
 		if a.extension != "" {
 			a.key = fmt.Sprintf("%s.%s", table, a.extension)

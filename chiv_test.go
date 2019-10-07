@@ -22,15 +22,17 @@ func TestArchiveRows(t *testing.T) {
 		rows        *rows
 		uploader    *uploader
 		bucket      string
-		formatter   *formatter
+		formatter   chiv.Formatter
 		options     []chiv.Option
 		expectedErr string
+		expectedKey string
 	}{
 		{
-			name:      "base case",
-			rows:      &rows{},
-			uploader:  &uploader{},
-			formatter: &formatter{},
+			name:        "base case",
+			rows:        &rows{},
+			expectedKey: "table",
+			uploader:    &uploader{},
+			formatter:   &formatter{},
 		},
 		{
 			name: "happy path one row",
@@ -38,8 +40,9 @@ func TestArchiveRows(t *testing.T) {
 				columns: []string{"first_column", "second_column"},
 				scan:    [][]string{{"first", "second"}},
 			},
-			uploader:  &uploader{},
-			formatter: &formatter{},
+			expectedKey: "table",
+			uploader:    &uploader{},
+			formatter:   &formatter{},
 		},
 		{
 			name: "happy path multiple rows",
@@ -51,8 +54,9 @@ func TestArchiveRows(t *testing.T) {
 					{"seventh", "eighth", "ninth"},
 				},
 			},
-			uploader:  &uploader{},
-			formatter: &formatter{},
+			expectedKey: "table",
+			uploader:    &uploader{},
+			formatter:   &formatter{},
 		},
 		{
 			name: "column types error",
@@ -62,6 +66,7 @@ func TestArchiveRows(t *testing.T) {
 				columnTypesErr: errors.New("column types"),
 			},
 			expectedErr: "chiv: getting column types from rows: column types",
+			expectedKey: "table",
 			uploader:    &uploader{},
 			formatter:   &formatter{},
 		},
@@ -72,6 +77,7 @@ func TestArchiveRows(t *testing.T) {
 				scan:    [][]string{{"first", "second"}},
 			},
 			expectedErr: "chiv: downloading: opening formatter: opening formatter",
+			expectedKey: "table",
 			uploader:    &uploader{},
 			formatter: &formatter{
 				openErr: errors.New("opening formatter"),
@@ -85,6 +91,7 @@ func TestArchiveRows(t *testing.T) {
 				scanErr: errors.New("scanning"),
 			},
 			expectedErr: "chiv: downloading: scanning row: scanning",
+			expectedKey: "table",
 			uploader:    &uploader{},
 			formatter:   &formatter{},
 		},
@@ -95,6 +102,7 @@ func TestArchiveRows(t *testing.T) {
 				scan:    [][]string{{"first", "second"}},
 			},
 			expectedErr: "chiv: downloading: formatting row: formatting",
+			expectedKey: "table",
 			uploader:    &uploader{},
 			formatter: &formatter{
 				formatErr: errors.New("formatting"),
@@ -108,6 +116,7 @@ func TestArchiveRows(t *testing.T) {
 				errErr:  errors.New("database"),
 			},
 			expectedErr: "chiv: downloading: scanning rows: database",
+			expectedKey: "table",
 			uploader:    &uploader{},
 			formatter:   &formatter{},
 		},
@@ -118,6 +127,7 @@ func TestArchiveRows(t *testing.T) {
 				scan:    [][]string{{"first", "second"}},
 			},
 			expectedErr: "chiv: downloading: closing formatter: closing formatter",
+			expectedKey: "table",
 			uploader:    &uploader{},
 			formatter: &formatter{
 				closeErr: errors.New("closing formatter"),
@@ -130,10 +140,23 @@ func TestArchiveRows(t *testing.T) {
 				scan:    [][]string{{"first", "second"}},
 			},
 			expectedErr: "chiv: uploading: uploading",
+			expectedKey: "table",
 			uploader: &uploader{
 				uploadErr: errors.New("uploading"),
 			},
 			formatter: &formatter{},
+		},
+		{
+			name: "extension formatter",
+			rows: &rows{
+				columns: []string{"first_column", "second_column"},
+				scan:    [][]string{{"first", "second"}},
+			},
+			expectedKey: "NOTEQUALWTFtable.ext",
+			uploader: &uploader{
+				uploadErr: errors.New("uploading"),
+			},
+			formatter: &extensionFormatter{&formatter{}},
 		},
 	}
 
@@ -149,14 +172,25 @@ func TestArchiveRows(t *testing.T) {
 				return
 			}
 
+			var f *formatter
+			switch v := test.formatter.(type) {
+			case *extensionFormatter:
+				f = v.formatter
+			case *formatter:
+				f = v
+			default:
+				t.Fatal("unrecognized formatter type")
+			}
+
 			require.NoError(t, err)
-			require.True(t, test.formatter.closed)
+			require.True(t, f.closed)
+			require.Equal(t, test.expectedKey, test.uploader.uploadKey)
 
 			for i := range test.rows.scan {
 				for j := range test.rows.scan[i] {
-					require.True(t, i < len(test.formatter.written) && j < len(test.formatter.written[i]), "formatter written record count")
+					require.True(t, i < len(f.written) && j < len(f.written[i]), "formatter written record count")
 					expected := test.rows.scan[i][j]
-					actual := test.formatter.written[i][j]
+					actual := f.written[i][j]
 					require.Equal(t, expected, actual)
 				}
 			}
@@ -173,7 +207,7 @@ type rows struct {
 }
 
 func (r *rows) ColumnTypes() ([]*sql.ColumnType, error) {
-	return make([](*sql.ColumnType), len(r.columns)), r.columnTypesErr
+	return make([]*sql.ColumnType, len(r.columns)), r.columnTypesErr
 }
 
 func (r *rows) Next() bool {
@@ -201,6 +235,7 @@ func (r *rows) Err() error {
 }
 
 type uploader struct {
+	uploadKey string
 	uploadErr error
 }
 
@@ -212,6 +247,7 @@ func (u *uploader) UploadWithContext(ctx aws.Context, input *s3manager.UploadInp
 		}
 	}
 
+	u.uploadKey = *input.Key
 	return nil, u.uploadErr
 }
 
@@ -245,7 +281,16 @@ func (f *formatter) Format(record [][]byte) error {
 
 	return nil
 }
+
 func (f *formatter) Close() error {
 	f.closed = true
 	return f.closeErr
+}
+
+type extensionFormatter struct {
+	*formatter
+}
+
+func (f *extensionFormatter) Extension() string {
+	return "ext"
 }

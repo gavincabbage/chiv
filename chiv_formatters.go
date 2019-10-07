@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"strconv"
 
-	"gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v2"
 )
 
 // Column reports its name, database type name and scan type.
@@ -90,6 +90,11 @@ func (f *csvFormatter) Close() error {
 	return nil
 }
 
+// Extension returns the default CSV formatter extension.
+func (f *csvFormatter) Extension() string {
+	return "csv"
+}
+
 type yamlFormatter struct {
 	w       io.Writer
 	columns []Column
@@ -130,6 +135,11 @@ func (f *yamlFormatter) Format(record [][]byte) error {
 // Close the YAML formatter.
 func (f *yamlFormatter) Close() error {
 	return nil
+}
+
+// Extension returns the default YAML formatter extension.
+func (f *yamlFormatter) Extension() string {
+	return "yaml"
 }
 
 const (
@@ -194,6 +204,11 @@ func (f *jsonFormatter) Close() error {
 	}
 
 	return nil
+}
+
+// Extension returns the default JSON formatter extension.
+func (f *jsonFormatter) Extension() string {
+	return "json"
 }
 
 func (f *jsonFormatter) writeByte(b byte) error {
