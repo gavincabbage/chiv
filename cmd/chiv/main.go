@@ -17,14 +17,13 @@ import (
 	_ "github.com/lib/pq"
 )
 
-var version = "dev"
+var version string
 
 func main() {
 	app := cli.App{
 		Name:      "chiv",
 		HelpName:  "chiv",
 		Usage:     "Archive relational data to Amazon S3",
-		Version:   version,
 		UsageText: "chiv [flags...]",
 		HideHelp:  true,
 		Action:    run,
@@ -78,6 +77,10 @@ func main() {
 				Usage: "show usage details",
 			},
 		},
+	}
+
+	if version != "" {
+		app.Version = version
 	}
 
 	cli.HandleExitCoder(app.Run(os.Args))
