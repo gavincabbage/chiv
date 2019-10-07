@@ -156,6 +156,28 @@ func TestArchiveRows(t *testing.T) {
 			uploader:    &uploader{},
 			formatter:   &extensionFormatter{&formatter{}},
 		},
+		{
+			name: "extension formatter override with key",
+			rows: &rows{
+				columns: []string{"first_column", "second_column"},
+				scan:    [][]string{{"first", "second"}},
+			},
+			expectedKey: "different_key",
+			uploader:    &uploader{},
+			formatter:   &extensionFormatter{&formatter{}},
+			options:     []chiv.Option{chiv.WithKey("different_key")},
+		},
+		{
+			name: "extension formatter override with extension",
+			rows: &rows{
+				columns: []string{"first_column", "second_column"},
+				scan:    [][]string{{"first", "second"}},
+			},
+			expectedKey: "table.new_extension",
+			uploader:    &uploader{},
+			formatter:   &extensionFormatter{&formatter{}},
+			options:     []chiv.Option{chiv.WithExtension("new_extension")},
+		},
 	}
 
 	for _, test := range cases {

@@ -350,6 +350,43 @@ func TestArchiveWithContext(t *testing.T) {
 	require.Equal(t, readFile(t, expected), actual)
 }
 
+func TestArchiveRowsJoin(t *testing.T) {
+	var (
+		database   = os.Getenv("POSTGRES_URL")
+		driver     = "postgres"
+		bucket     = "join_bucket"
+		key        = "join.csv"
+		setup      = "./testdata/postgres/join_setup.sql"
+		teardown   = "./testdata/postgres/join_teardown.sql"
+		expected   = "./testdata/postgres/join.csv"
+		db         = newDB(t, driver, database)
+		s3client   = newS3Client(t, os.Getenv("AWS_REGION"), os.Getenv("AWS_ENDPOINT"))
+		uploader   = s3manager.NewUploaderWithClient(s3client)
+		downloader = s3manager.NewDownloaderWithClient(s3client)
+	)
+	defer db.Close()
+
+	exec(t, db, readFile(t, setup))
+	defer exec(t, db, readFile(t, teardown))
+
+	createBucket(t, s3client, bucket)
+	defer deleteBucket(t, s3client, bucket)
+
+	rows, err := db.Query(`
+		SELECT first_table.id, first_text, first_int, second_text, second_int 
+		FROM first_table
+		JOIN second_table ON first_table.id = second_table.id;
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	require.NoError(t, chiv.ArchiveRows(rows, uploader, bucket, chiv.WithKey("join.csv")))
+
+	actual := download(t, downloader, bucket, key)
+	require.Equal(t, readFile(t, expected), actual)
+}
+
 const (
 	retryLimit    = 15
 	retryInterval = 3 * time.Second

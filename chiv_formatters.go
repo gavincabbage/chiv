@@ -91,7 +91,7 @@ func (f *csvFormatter) Close() error {
 }
 
 // Extension returns the default CSV formatter extension.
-func (f *csvFormatter) Extension() string {
+func (*csvFormatter) Extension() string {
 	return "csv"
 }
 
@@ -109,7 +109,7 @@ func YAML(w io.Writer, columns []Column) Formatter {
 }
 
 // Open the YAML formatter.
-func (_ *yamlFormatter) Open() error {
+func (*yamlFormatter) Open() error {
 	return nil
 }
 
@@ -133,12 +133,12 @@ func (f *yamlFormatter) Format(record [][]byte) error {
 }
 
 // Close the YAML formatter.
-func (f *yamlFormatter) Close() error {
+func (*yamlFormatter) Close() error {
 	return nil
 }
 
 // Extension returns the default YAML formatter extension.
-func (f *yamlFormatter) Extension() string {
+func (*yamlFormatter) Extension() string {
 	return "yaml"
 }
 
@@ -207,7 +207,7 @@ func (f *jsonFormatter) Close() error {
 }
 
 // Extension returns the default JSON formatter extension.
-func (f *jsonFormatter) Extension() string {
+func (*jsonFormatter) Extension() string {
 	return "json"
 }
 
