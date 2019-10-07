@@ -71,7 +71,7 @@ A simple CLI wrapping the package is also included.
 
 ```text
 NAME:
-   chiv - Archive relational database tables to Amazon S3
+   chiv - Archive relational data to Amazon S3
 
 USAGE:
    chiv [flags...]

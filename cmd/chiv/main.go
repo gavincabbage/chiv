@@ -23,7 +23,7 @@ func main() {
 	app := cli.App{
 		Name:      "chiv",
 		HelpName:  "chiv",
-		Usage:     "Archive relational database tables to Amazon S3",
+		Usage:     "Archive relational data to Amazon S3",
 		Version:   version,
 		UsageText: "chiv [flags...]",
 		HideHelp:  true,

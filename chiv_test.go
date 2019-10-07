@@ -152,11 +152,9 @@ func TestArchiveRows(t *testing.T) {
 				columns: []string{"first_column", "second_column"},
 				scan:    [][]string{{"first", "second"}},
 			},
-			expectedKey: "NOTEQUALWTFtable.ext",
-			uploader: &uploader{
-				uploadErr: errors.New("uploading"),
-			},
-			formatter: &extensionFormatter{&formatter{}},
+			expectedKey: "table.ext",
+			uploader:    &uploader{},
+			formatter:   &extensionFormatter{&formatter{}},
 		},
 	}
 
