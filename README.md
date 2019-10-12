@@ -27,7 +27,7 @@ This project provides the `chiv` package and a simple CLI wrapper of the same na
 
 Use `chiv` to download relational data from a database and format it before uploading to Amazon S3.
 Built-in formats include CSV, YAML and JSON. 
-Custom formats are also supported through the `chiv.Formatter` interface.
+Custom formats are also supported through the `Formatter` interface.
 
 # Getting Started
 
@@ -35,7 +35,7 @@ Custom formats are also supported through the `chiv.Formatter` interface.
 import "gavincabbage.com/chiv"
 ```
 
-Provide a database and upload manager to upload a table to an S3 bucket.
+Provide a database and upload manager to upload a table to an S3 bucket in the default CSV format.
 
 ```go
 db, _ := sql.Open(config.driver, config.url)
@@ -58,7 +58,7 @@ chiv.Archive(db, uploader, "table", "bucket"
 ```
 
 For multiple uploads using the same database and S3 clients, construct an `Archiver`. Options provided during
-construction can be overridden in individual archival calls.
+construction of an `Archiver` can be overridden in individual archival calls.
 
 ```go
 a := chiv.NewArchiver(db, uploader, chiv.WithFormat(chiv.YAML))
@@ -77,7 +77,17 @@ chiv.ArchiveRows(rows, uploader, "bucket")
 
 Context-aware versions are also provided, e.g. `ArchiveWithContext`, `ArchiveRowsWithContext`, etc.
 
-See the unit and integration tests for additional examples.
+See the [unit](https://github.com/gavincabbage/chiv/blob/master/chiv_test.go)
+and [integration](https://github.com/gavincabbage/chiv/blob/master/chiv_integration_test.go)
+tests for additional examples.
+
+# Custom Formats
+
+Custom formats can be used by implementing the `FormatterFunc` and `Formatter` interfaces.
+The optional `Extensioner` interface can be implemented to allow a `Formatter` to provide a default extension.
+
+See the three [built-in formats](https://github.com/gavincabbage/chiv/blob/master/chiv_formatters.go)
+for examples.
 
 # CLI
 
@@ -111,11 +121,17 @@ GLOBAL OPTIONS:
 
 This package ties together three components of what is essentially an ETL operation:
 
-- **Extract** database rows with a `chiv.Database` or `chiv.Rows`
-  - `chiv.Database` may be a `*sql.DB`, `*sql.Conn`, `*sql.Tx`, etc.
-- **Transform** data into an upload format with a `chiv.Formatter`
-- **Load** the formatted data into S3 with a `chiv.Uploader`
-  - `chiv.Uploader` is typically an `*s3manager.Uploader`
+- **Extract** database rows with a `Database` or `Rows`
+  - `Database` may be a `*sql.DB`, `*sql.Conn`, `*sql.Tx`, etc.
+- **Transform** data into an upload format with a `Formatter`
+- **Load** the formatted data into S3 with a `Uploader`
+  - `Uploader` is typically an `*s3manager.Uploader`
+  
+An `io.Pipe` is used to guarantee a cap on total memory usage by `chiv` itself.
+A [benchmark](https://github.com/gavincabbage/chiv/blob/master/chiv_benchmark_test.go)
+is provided to profile the package's memory usage.
+Total memory usage of the archival process can be further controlled by 
+configuring the S3 upload manager.
 
 ![Architecture](img/arch.png)
 
@@ -150,6 +166,3 @@ Tagged releases are built automatically by [GoReleaser](https://goreleaser.com/)
 
 Contributions in the form of comments, issues or pull requests are very welcome.
 If you use this package I would love to hear from you!
-
---- --- ---
-
