@@ -1,4 +1,4 @@
-![Image](img/chiv.png)
+![Title](img/chiv.png)
 
 ---
 
@@ -7,7 +7,7 @@
 </p>
 
 <div align="center">
-    <a href="https://github.com/gavincabbage/chiv/actions">
+    <a href="https://github.com/gavincabbage/chiv/actions?workflow=build">
         <img src="https://github.com/gavincabbage/chiv/workflows/build/badge.svg" alt="build" />
     </a>
     <a href="https://goreportcard.com/report/gavincabbage.com/chiv">
@@ -22,6 +22,18 @@
 </div>
 
 ---
+
+This project provides the `chiv` package and a simple CLI wrapper of the same name.
+
+Use `chiv` to download relational data from a database and format it before uploading to Amazon S3.
+Built-in formats include CSV, YAML and JSON. 
+Custom formats are also supported through the `chiv.Formatter` interface.
+
+# Getting Started
+
+```go
+import "gavincabbage.com/chiv"
+```
 
 Provide a database and upload manager to upload a table to an S3 bucket.
 
@@ -65,7 +77,9 @@ chiv.ArchiveRows(rows, uploader, "bucket")
 
 Context-aware versions are also provided, e.g. `ArchiveWithContext`, `ArchiveRowsWithContext`, etc.
 
-## CLI
+See the unit and integration tests for additional examples.
+
+# CLI
 
 A simple CLI wrapping the package is also included.
 
@@ -91,5 +105,51 @@ GLOBAL OPTIONS:
    --null value, -n value       upload null value
    --help, -h                   show usage details
    --version, -v                print the version
-
 ```
+
+# Design
+
+This package ties together three components of what is essentially an ETL operation:
+
+- **Extract** database rows with a `chiv.Database` or `chiv.Rows`
+  - `chiv.Database` may be a `*sql.DB`, `*sql.Conn`, `*sql.Tx`, etc.
+- **Transform** data into an upload format with a `chiv.Formatter`
+- **Load** the formatted data into S3 with a `chiv.Uploader`
+  - `chiv.Uploader` is typically an `*s3manager.Uploader`
+
+![Architecture](img/arch.png)
+
+# Testing & Development
+
+Tests are segregated by build tags.
+
+Run unit tests:
+
+```bash
+go test -tags=unit ./...
+```
+
+Use docker-compose to run the full suite of unit and integration tests:
+
+```bash
+docker-compose up --exit-code-from test --build
+```
+
+Run benchmarks:
+
+```bash
+go test -v -p 1 -tags=benchmark,unit -run=Benchmark -benchmem -bench=.
+```
+
+This project uses GitHub Actions for CI. 
+Linting, unit tests, integration tests and benchmarks are run for each push or pull request.
+
+Tagged releases are built automatically by [GoReleaser](https://goreleaser.com/).
+
+# Contributing
+
+Contributions in the form of comments, issues or pull requests are very welcome.
+If you use this package I would love to hear from you!
+
+--- --- ---
+

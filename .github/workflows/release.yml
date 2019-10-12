@@ -15,6 +15,5 @@ jobs:
         uses: goreleaser/goreleaser-action@master
         with:
           args: release
-          key: ${{ secrets.RELEASE_PRIVATE_KEY }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
