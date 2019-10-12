@@ -23,7 +23,7 @@
 
 ---
 
-This project provides the `chiv` package and a simple CLI wrapper of the same name.
+This project provides the `chiv` package and a simple CLI wrapper of the same name. It requires Go 1.13.
 
 Use `chiv` to download relational data from a database and format it before uploading to Amazon S3.
 Built-in formats include CSV, YAML and JSON. 
