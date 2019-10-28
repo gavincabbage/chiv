@@ -165,4 +165,5 @@ Tagged releases are built automatically by [GoReleaser](https://goreleaser.com/)
 # Contributing
 
 Contributions in the form of comments, issues or pull requests are very welcome.
+
 If you use this package I would love to hear from you!
